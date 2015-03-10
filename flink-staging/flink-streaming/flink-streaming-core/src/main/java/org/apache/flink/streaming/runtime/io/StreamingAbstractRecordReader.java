@@ -57,6 +57,8 @@ public abstract class StreamingAbstractRecordReader<T extends IOReadableWritable
 
 	private final BarrierBuffer barrierBuffer;
 
+	private int lastChannelIndex;
+	
 	@SuppressWarnings("unchecked")
 	protected StreamingAbstractRecordReader(InputGate inputGate) {
 		super(inputGate);
@@ -92,7 +94,8 @@ public abstract class StreamingAbstractRecordReader<T extends IOReadableWritable
 			final BufferOrEvent bufferOrEvent = barrierBuffer.getNextNonBlocked();
 
 			if (bufferOrEvent.isBuffer()) {
-				currentRecordDeserializer = recordDeserializers[bufferOrEvent.getChannelIndex()];
+				this.lastChannelIndex = bufferOrEvent.getChannelIndex();
+				currentRecordDeserializer = recordDeserializers[this.lastChannelIndex];
 				currentRecordDeserializer.setNextBuffer(bufferOrEvent.getBuffer());
 			} else {
 				// Event received
@@ -130,4 +133,9 @@ public abstract class StreamingAbstractRecordReader<T extends IOReadableWritable
 	public void cleanup() throws IOException {
 		barrierBuffer.cleanup();
 	}
+	
+	public int getLastChannelIndex() {
+		return this.lastChannelIndex;
+	}
+
 }

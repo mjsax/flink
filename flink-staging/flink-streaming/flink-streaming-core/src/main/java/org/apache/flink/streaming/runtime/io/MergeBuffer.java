@@ -1,9 +1,26 @@
-package org.apache.flink.streaming.io;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.flink.streaming.runtime.io;
 
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 
-import org.apache.flink.streaming.api.streamrecord.OrderedStreamRecord;
+import org.apache.flink.streaming.api.windowing.helper.Timestamp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,58 +30,65 @@ import org.slf4j.LoggerFactory;
  * TODO
  * 
  *
- * @author mjsax
- *
  * @param <IN>
  */
-public class MergeBuffer {
+class MergeBuffer<T> {
 	private static final Logger LOG = LoggerFactory.getLogger(MergeBuffer.class);
 
 	/**
 	 * TODO
 	 */
-	private final LinkedList<OrderedStreamRecord<?>>[] channelBuffer;
+	private final LinkedList<T>[] channelBuffer;
 	/**
 	 * TODO
 	 */
 	private long latestTs = Long.MIN_VALUE;
+	/**
+	 * TODO
+	 */
+	private final Timestamp<T> timestampExtractor;
+	
 	
 	
 	/**
+	 * TODO
 	 * 
 	 * @param numberOfInputChannels
+	 * @param timestampExtractor
 	 */
 	@SuppressWarnings("unchecked")
-	public MergeBuffer(final int numberOfInputChannels) {
+	public MergeBuffer(final int numberOfInputChannels, Timestamp<T> timestampExtractor) {
 		assert(numberOfInputChannels >= 0);
 		
 		this.channelBuffer = new LinkedList[numberOfInputChannels];
 		for(int i = 0; i < numberOfInputChannels; ++i) {
-			this.channelBuffer[i] = new LinkedList<OrderedStreamRecord<?>>();
+			this.channelBuffer[i] = new LinkedList<T>();
 		}
+
+		this.timestampExtractor = timestampExtractor;
 	}
 	
 	
 	
 	/**
-	 * 
+	 * TODO
 	 */
-	public void addTuple(OrderedStreamRecord<?> record, int index) {
+	public void addTuple(T record, int index) {
 		assert(record != null);
 		this.channelBuffer[index].add(record);
 	}
 	
 	/**
-	 * 
+	 * TODO
 	 */
-	public OrderedStreamRecord<?> getNext() {
+	public T getNext() {
 		long minTsFound = Long.MAX_VALUE;
 		boolean eachBufferFilled = true;
 		int minTsPartitionNumber = -1;
 		
 		for(int i = 0; i < this.channelBuffer.length; ++i) {
 			try {
-				long ts = this.channelBuffer[i].getFirst().getTs();
+				long ts = this.timestampExtractor.getTimestamp(this.channelBuffer[i].getFirst());
 				assert (ts >= this.latestTs);
 				
 				if(ts == this.latestTs) {

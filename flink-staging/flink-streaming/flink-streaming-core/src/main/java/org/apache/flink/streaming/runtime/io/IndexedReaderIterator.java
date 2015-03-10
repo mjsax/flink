@@ -23,12 +23,11 @@ import java.io.IOException;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.operators.util.ReaderIterator;
 import org.apache.flink.runtime.plugable.DeserializationDelegate;
-import org.apache.flink.streaming.api.streamrecord.OrderedStreamRecord;
 
 public class IndexedReaderIterator<T> extends ReaderIterator<T> {
 
 	protected final IndexedMutableReader<DeserializationDelegate<T>> reader;
-	private final MergeBuffer channelMerger;
+	private final MergeBuffer<T> channelMerger;
 	
 	public IndexedReaderIterator(
 			IndexedMutableReader<DeserializationDelegate<T>> reader,
@@ -45,14 +44,13 @@ public class IndexedReaderIterator<T> extends ReaderIterator<T> {
 		
 		this.reader = reader;
 		if(ordered == true) {
-			this.channelMerger = new MergeBuffer(this.reader.getNumberOfInputChannels());
+			this.channelMerger = new MergeBuffer<T>(this.reader.getNumberOfInputChannels(), null);
 		} else {
 			this.channelMerger = null;
 		}
 	}
 
 	
-	@SuppressWarnings("unchecked")
 	@Override
 	public T next(T target) throws IOException {
 		// non ordering case
@@ -61,19 +59,18 @@ public class IndexedReaderIterator<T> extends ReaderIterator<T> {
 		}
 
 		// ordering case
-		OrderedStreamRecord<?> nextRecord = this.channelMerger.getNext();
+		T nextRecord = this.channelMerger.getNext();
 		if(nextRecord == null) {
-			nextRecord = (OrderedStreamRecord<?>)super.next(target);
+			nextRecord = super.next(target);
 			if(nextRecord != null) {
 				this.channelMerger.addTuple(nextRecord, this.reader.getLastChannelIndex());
 				nextRecord = this.channelMerger.getNext();
 			}
 		}
 
-		return (T)nextRecord;
+		return nextRecord;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public T next() throws IOException {
 		// non ordering case
@@ -82,16 +79,16 @@ public class IndexedReaderIterator<T> extends ReaderIterator<T> {
 		}
 
 		// ordering case
-		OrderedStreamRecord<?> nextRecord = this.channelMerger.getNext();
+		T nextRecord = this.channelMerger.getNext();
 		if(nextRecord == null) {
-			nextRecord = (OrderedStreamRecord<?>)super.next();
+			nextRecord = super.next();
 			if(nextRecord != null) {
 				this.channelMerger.addTuple(nextRecord, this.reader.getLastChannelIndex());
 				nextRecord = this.channelMerger.getNext();
 			}
 		}
 
-		return (T)nextRecord;
+		return nextRecord;
 	}
 	
 }
