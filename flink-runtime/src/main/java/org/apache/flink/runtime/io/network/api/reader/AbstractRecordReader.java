@@ -43,6 +43,8 @@ abstract class AbstractRecordReader<T extends IOReadableWritable> extends Abstra
 
 	private boolean isFinished;
 
+	private int lastChannelIndex;
+	
 	@SuppressWarnings("unchecked")
 	protected AbstractRecordReader(InputGate inputGate) {
 		super(inputGate);
@@ -76,7 +78,8 @@ abstract class AbstractRecordReader<T extends IOReadableWritable> extends Abstra
 			final BufferOrEvent bufferOrEvent = inputGate.getNextBufferOrEvent();
 
 			if (bufferOrEvent.isBuffer()) {
-				currentRecordDeserializer = recordDeserializers[bufferOrEvent.getChannelIndex()];
+				this.lastChannelIndex = bufferOrEvent.getChannelIndex();
+				currentRecordDeserializer = recordDeserializers[this.lastChannelIndex];
 				currentRecordDeserializer.setNextBuffer(bufferOrEvent.getBuffer());
 			}
 			else {
@@ -112,4 +115,9 @@ abstract class AbstractRecordReader<T extends IOReadableWritable> extends Abstra
 			}
 		}
 	}
+	
+	public int getLastChannelIndex() {
+		return this.lastChannelIndex;
+	}
+	
 }
