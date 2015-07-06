@@ -21,6 +21,8 @@ package org.apache.flink.test.runtime.leaderelection;
 import akka.actor.ActorSystem;
 import akka.actor.Kill;
 import akka.actor.PoisonPill;
+
+import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.client.JobClient;
@@ -40,10 +42,10 @@ import org.apache.flink.runtime.util.LeaderRetrievalUtils;
 import org.apache.flink.test.util.ForkableFlinkMiniCluster;
 import org.apache.flink.util.TestLogger;
 import org.junit.Test;
+
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.FiniteDuration;
-
 import static org.junit.Assert.*;
 
 public class ZooKeeperLeaderElectionITCase extends TestLogger {
@@ -128,7 +130,7 @@ public class ZooKeeperLeaderElectionITCase extends TestLogger {
 		sender.setSlotSharingGroup(slotSharingGroup);
 		receiver.setSlotSharingGroup(slotSharingGroup);
 
-		final JobGraph graph = new JobGraph("Blocking test job", sender, receiver);
+		final JobGraph graph = new JobGraph("Blocking test job", JobType.BATCHING, sender, receiver);
 
 		final ForkableFlinkMiniCluster cluster = new ForkableFlinkMiniCluster(configuration);
 

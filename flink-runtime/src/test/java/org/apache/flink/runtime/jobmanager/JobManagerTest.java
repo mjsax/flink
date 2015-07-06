@@ -24,6 +24,7 @@ import akka.testkit.JavaTestKit;
 import com.typesafe.config.Config;
 
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.akka.ListeningBehaviour;
@@ -55,6 +56,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import scala.Option;
 import scala.Some;
 import scala.Tuple2;
 
@@ -118,7 +120,7 @@ public class JobManagerTest {
 				sender.setInvokableClass(Tasks.BlockingNoOpInvokable.class); // just block
 				sender.createAndAddResultDataSet(rid, PIPELINED);
 
-				final JobGraph jobGraph = new JobGraph("Blocking test job", sender);
+				final JobGraph jobGraph = new JobGraph("Blocking test job", JobType.BATCHING, sender);
 				final JobID jid = jobGraph.getJobID();
 
 				final ActorGateway jobManagerGateway = cluster.getLeaderGateway(

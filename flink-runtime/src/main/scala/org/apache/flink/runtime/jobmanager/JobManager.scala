@@ -662,6 +662,7 @@ class JobManager(
               executionContext,
               jobGraph.getJobID,
               jobGraph.getName,
+              jobGraph.getType,
               jobGraph.getJobConfiguration,
               timeout,
               jobGraph.getUserJarBlobKeys,

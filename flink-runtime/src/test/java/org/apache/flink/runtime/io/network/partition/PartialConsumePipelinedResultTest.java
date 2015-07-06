@@ -19,6 +19,8 @@
 package org.apache.flink.runtime.io.network.partition;
 
 import akka.actor.ActorSystem;
+
+import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.client.JobClient;
@@ -94,7 +96,7 @@ public class PartialConsumePipelinedResultTest {
 				sender, DistributionPattern.POINTWISE, ResultPartitionType.PIPELINED);
 
 		final JobGraph jobGraph = new JobGraph(
-				"Partial Consume of Pipelined Result", sender, receiver);
+				"Partial Consume of Pipelined Result", JobType.BATCHING, sender, receiver);
 
 		final SlotSharingGroup slotSharingGroup = new SlotSharingGroup(
 				sender.getID(), receiver.getID());

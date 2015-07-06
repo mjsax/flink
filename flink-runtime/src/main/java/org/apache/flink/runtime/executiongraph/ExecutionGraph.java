@@ -23,6 +23,7 @@ import akka.actor.ActorSystem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.Accumulator;
 import org.apache.flink.api.common.accumulators.AccumulatorHelper;
+import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.accumulators.AccumulatorSnapshot;
@@ -108,7 +109,7 @@ public class ExecutionGraph implements Serializable {
 
 	/** The log object used for debugging. */
 	static final Logger LOG = LoggerFactory.getLogger(ExecutionGraph.class);
-	
+
 	private static final int NUMBER_OF_SUCCESSFUL_CHECKPOINTS_TO_RETAIN = 1;
 
 	// --------------------------------------------------------------------------------------------
@@ -116,12 +117,15 @@ public class ExecutionGraph implements Serializable {
 	/** The lock used to secure all access to mutable fields, especially the tracking of progress
 	 * within the job. */
 	private final SerializableObject progressLock = new SerializableObject();
-	
+
 	/** The ID of the job this graph has been built for. */
 	private final JobID jobID;
 
 	/** The name of the original job graph. */
 	private final String jobName;
+
+	/** The type of the job this graph has been built for. */
+	private final JobType jobType;
 
 	/** The job configuration that was originally attached to the JobGraph. */
 	private final Configuration jobConfiguration;
@@ -181,7 +185,7 @@ public class ExecutionGraph implements Serializable {
 
 	/** Flag to indicate whether the Graph has been archived */
 	private boolean isArchived = false;
-		
+
 
 	// ------ Execution status and progress. These values are volatile, and accessed under the lock -------
 
@@ -194,8 +198,8 @@ public class ExecutionGraph implements Serializable {
 
 	/** The number of job vertices that have reached a terminal state */
 	private volatile int numFinishedJobVertices;
-	
-	
+
+
 	// ------ Fields that are relevant to the execution and need to be cleared before archiving  -------
 
 	/** The scheduler to use for scheduling new tasks as they are needed */
@@ -205,7 +209,7 @@ public class ExecutionGraph implements Serializable {
 	/** The classloader for the user code. Needed for calls into user code classes */
 	@SuppressWarnings("NonSerializableFieldInSerializableClass")
 	private ClassLoader userClassLoader;
-	
+
 	/** The coordinator for checkpoints, if snapshot checkpoints are enabled */
 	@SuppressWarnings("NonSerializableFieldInSerializableClass")
 	private CheckpointCoordinator checkpointCoordinator;
@@ -226,33 +230,17 @@ public class ExecutionGraph implements Serializable {
 	/**
 	 * This constructor is for tests only, because it does not include class loading information.
 	 */
-	ExecutionGraph(
-			ExecutionContext executionContext,
-			JobID jobId,
-			String jobName,
-			Configuration jobConfig,
-			FiniteDuration timeout) {
-		this(
-			executionContext,
-			jobId,
-			jobName,
-			jobConfig,
-			timeout,
-			new ArrayList<BlobKey>(),
-			ExecutionGraph.class.getClassLoader()
-		);
+	ExecutionGraph(ExecutionContext executionContext, JobID jobId, String jobName, JobType jobType,
+			Configuration jobConfig, FiniteDuration timeout)
+	{
+		this(executionContext, jobId, jobName, jobType, jobConfig, timeout, new ArrayList<BlobKey>(),
+			ExecutionGraph.class.getClassLoader());
 	}
 
-	public ExecutionGraph(
-			ExecutionContext executionContext,
-			JobID jobId,
-			String jobName,
-			Configuration jobConfig,
-			FiniteDuration timeout,
-			List<BlobKey> requiredJarFiles,
-			ClassLoader userClassLoader) {
+	public ExecutionGraph(ExecutionContext executionContext, JobID jobId, String jobName, JobType jobType,
+			Configuration jobConfig, FiniteDuration timeout, List<BlobKey> requiredJarFiles, ClassLoader userClassLoader) {
 
-		if (executionContext == null || jobId == null || jobName == null || jobConfig == null || userClassLoader == null) {
+		if (executionContext == null || jobId == null || jobName == null || jobType == null || jobConfig == null || userClassLoader == null) {
 			throw new NullPointerException();
 		}
 
@@ -260,6 +248,7 @@ public class ExecutionGraph implements Serializable {
 
 		this.jobID = jobId;
 		this.jobName = jobName;
+		this.jobType = jobType;
 		this.jobConfiguration = jobConfig;
 		this.userClassLoader = userClassLoader;
 
@@ -280,7 +269,7 @@ public class ExecutionGraph implements Serializable {
 	}
 
 	// --------------------------------------------------------------------------------------------
-	//  Configuration of Data-flow wide execution settings  
+	//  Configuration of Data-flow wide execution settings
 	// --------------------------------------------------------------------------------------------
 
 	/**
@@ -351,11 +340,11 @@ public class ExecutionGraph implements Serializable {
 		ExecutionVertex[] tasksToTrigger = collectExecutionVertices(verticesToTrigger);
 		ExecutionVertex[] tasksToWaitFor = collectExecutionVertices(verticesToWaitFor);
 		ExecutionVertex[] tasksToCommitTo = collectExecutionVertices(verticesToCommitTo);
-		
+
 		// disable to make sure existing checkpoint coordinators are cleared
 		disableSnaphotCheckpointing();
-		
-		// create the coordinator that triggers and commits checkpoints and holds the state 
+
+		// create the coordinator that triggers and commits checkpoints and holds the state
 		snapshotCheckpointsEnabled = true;
 		checkpointCoordinator = new CheckpointCoordinator(
 				jobID,
@@ -365,7 +354,7 @@ public class ExecutionGraph implements Serializable {
 				tasksToWaitFor,
 				tasksToCommitTo,
 				userClassLoader);
-		
+
 		// the periodic checkpoint scheduler is activated and deactivated as a result of
 		// job status changes (running -> on, all other states -> off)
 		registerJobStatusListener(
@@ -374,19 +363,19 @@ public class ExecutionGraph implements Serializable {
 						interval,
 						leaderSessionID));
 	}
-	
+
 	public void disableSnaphotCheckpointing() {
 		if (state != JobStatus.CREATED) {
 			throw new IllegalStateException("Job must be in CREATED state");
 		}
-		
+
 		snapshotCheckpointsEnabled = false;
 		if (checkpointCoordinator != null) {
 			checkpointCoordinator.shutdown();
 			checkpointCoordinator = null;
 		}
 	}
-	
+
 	public boolean isSnapshotCheckpointsEnabled() {
 		return snapshotCheckpointsEnabled;
 	}
@@ -416,9 +405,9 @@ public class ExecutionGraph implements Serializable {
 	}
 
 	// --------------------------------------------------------------------------------------------
-	//  Properties and Status of the Execution Graph  
+	//  Properties and Status of the Execution Graph
 	// --------------------------------------------------------------------------------------------
-	
+
 	/**
 	 * Returns a list of BLOB keys referring to the JAR files required to run this job
 	 * @return list of BLOB keys referring to the JAR files required to run this job
@@ -450,6 +439,18 @@ public class ExecutionGraph implements Serializable {
 		return jobName;
 	}
 
+	public JobType getJobType() {
+		return jobType;
+	}
+
+	public boolean isBatchJob() {
+		return jobType == JobType.BATCHING;
+	}
+
+	public boolean isStreamingJob() {
+		return jobType == JobType.STREAMING;
+	}
+
 	public Configuration getJobConfiguration() {
 		return jobConfiguration;
 	}
@@ -478,7 +479,7 @@ public class ExecutionGraph implements Serializable {
 		// we return a specific iterator that does not fail with concurrent modifications
 		// the list is append only, so it is safe for that
 		final int numElements = this.verticesInCreationOrder.size();
-		
+
 		return new Iterable<ExecutionJobVertex>() {
 			@Override
 			public Iterator<ExecutionJobVertex> iterator() {
@@ -629,16 +630,16 @@ public class ExecutionGraph implements Serializable {
 			this.verticesInCreationOrder.add(ejv);
 		}
 	}
-	
+
 	public void scheduleForExecution(Scheduler scheduler) throws JobException {
 		if (scheduler == null) {
 			throw new IllegalArgumentException("Scheduler must not be null.");
 		}
-		
+
 		if (this.scheduler != null && this.scheduler != scheduler) {
 			throw new IllegalArgumentException("Cannot use different schedulers for the same job");
 		}
-		
+
 		if (transitionState(JobStatus.CREATED, JobStatus.RUNNING)) {
 			this.scheduler = scheduler;
 
@@ -708,10 +709,10 @@ public class ExecutionGraph implements Serializable {
 					// set the state of the job to failed
 					transitionState(JobStatus.FAILING, JobStatus.FAILED, t);
 				}
-				
+
 				return;
 			}
-			
+
 			// no need to treat other states
 		}
 	}
@@ -743,7 +744,7 @@ public class ExecutionGraph implements Serializable {
 				}
 				numFinishedJobVertices = 0;
 				transitionState(JobStatus.RESTARTING, JobStatus.CREATED);
-				
+
 				// if we have checkpointed state, reload it into the executions
 				if (checkpointCoordinator != null) {
 					checkpointCoordinator.restoreLatestCheckpointedState(getAllVertices(), false, false);
@@ -804,7 +805,7 @@ public class ExecutionGraph implements Serializable {
 			}
 		}
 	}
-	
+
 	private boolean transitionState(JobStatus current, JobStatus newState) {
 		return transitionState(current, newState, null);
 	}
@@ -831,9 +832,9 @@ public class ExecutionGraph implements Serializable {
 			}
 
 			numFinishedJobVertices++;
-			
+
 			if (numFinishedJobVertices == verticesInCreationOrder.size()) {
-				
+
 				// we are done, transition to the final state
 				JobStatus current;
 				while (true) {
@@ -891,7 +892,7 @@ public class ExecutionGraph implements Serializable {
 			}
 		}
 	}
-	
+
 	private void postRunCleanup() {
 		try {
 			CheckpointCoordinator coord = this.checkpointCoordinator;
@@ -1029,8 +1030,8 @@ public class ExecutionGraph implements Serializable {
 			this.executionListenerActors.add(listener);
 		}
 	}
-	
-	
+
+
 	private void notifyJobStatusChange(JobStatus newState, Throwable error) {
 		if (jobStatusListenerActors.size() > 0) {
 			ExecutionGraphMessages.JobStatusChanged message =
@@ -1042,7 +1043,7 @@ public class ExecutionGraph implements Serializable {
 			}
 		}
 	}
-	
+
 	void notifyExecutionChange(JobVertexID vertexId, int subtask, ExecutionAttemptID executionID, ExecutionState
 							newExecutionState, Throwable error)
 	{
