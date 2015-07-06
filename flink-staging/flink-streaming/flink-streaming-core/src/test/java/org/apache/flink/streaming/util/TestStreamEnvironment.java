@@ -29,6 +29,10 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironmentFactory;
 import org.apache.flink.test.util.ForkableFlinkMiniCluster;
 
+import scala.concurrent.Await;
+import scala.concurrent.Future;
+import scala.concurrent.duration.FiniteDuration;
+
 public class TestStreamEnvironment extends StreamExecutionEnvironment {
 	private static final String DEFAULT_JOBNAME = "TestStreamingJob";
 	private static final String CANNOT_EXECUTE_EMPTY_JOB = "Cannot execute empty job";

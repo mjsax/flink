@@ -209,27 +209,24 @@ public class FlinkClient {
 			throw new NotAliveException();
 		}
 
-		try {
-			final ActorRef jobManager = this.getJobManager();
-
-			if (options != null) {
-				try {
-					Thread.sleep(1000 * options.get_wait_secs());
-				} catch (final InterruptedException e) {
-					throw new RuntimeException(e);
-				}
-			}
-
-			final FiniteDuration askTimeout = this.getTimeout();
-			final Future<Object> response = Patterns.ask(jobManager, new CancelJob(jobId), new Timeout(askTimeout));
+		if (options != null) {
 			try {
-				Await.result(response, askTimeout);
-			} catch (final Exception e) {
-				throw new RuntimeException("Killing topology " + name + " with Flink job ID " + jobId + " failed", e);
+				Thread.sleep(1000 * options.get_wait_secs());
+			} catch (final InterruptedException e) {
+				throw new RuntimeException(e);
 			}
-		} catch (final IOException e) {
-			throw new RuntimeException("Could not connect to Flink JobManager with address " + this.jobManagerHost
-					+ ":" + this.jobManagerPort, e);
+		}
+
+		final Configuration configuration = GlobalConfiguration.getConfiguration();
+		configuration.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, this.jobManagerHost);
+		configuration.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, this.jobManagerPort);
+
+		final Client client = new Client(configuration, JobWithJars.class.getClassLoader());
+
+		try {
+			client.stop(jobId);
+		} catch (final Exception e) {
+			throw new RuntimeException("Cannot execute job due to ProgramStopException", e);
 		}
 	}
 

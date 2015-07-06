@@ -20,12 +20,18 @@ package org.apache.flink.streaming.util;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.GlobalConfiguration;
+import org.apache.flink.runtime.akka.AkkaUtils;
+import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import scala.concurrent.Await;
+import scala.concurrent.Future;
+import scala.concurrent.duration.FiniteDuration;
 
 public class ClusterUtil {
 	
@@ -81,7 +87,20 @@ public class ClusterUtil {
 	/**
 	 * Start a job in a detached mode on a local mini cluster.
 	 */
-	public static void startOnMiniCluster(JobGraph jobGraph, int parallelism) throws Exception {
-		runOnMiniCluster(jobGraph, parallelism, -1, true, true, null);
+	public static JobSubmissionResult startOnMiniCluster(JobGraph jobGraph, int parallelism) throws Exception {
+		return runOnMiniCluster(jobGraph, parallelism, -1, true, true, null);
+	}
+
+	public static void stopJobOnMiniCluser(JobID jobId) {
+		final Configuration configuration = GlobalConfiguration.getConfiguration();
+		FiniteDuration timeout = AkkaUtils.getTimeout(configuration);
+
+		ActorGateway jobmanager = exec.getLeaderGateway(timeout);
+		final Future<Object> response = jobmanager.ask(new StopJob(jobId), timeout);
+		try {
+			Await.result(response, timeout);
+		} catch (final Exception e) {
+			throw new RuntimeException("Stopping job with ID " + jobId + " failed", e);
+		}
 	}
 }

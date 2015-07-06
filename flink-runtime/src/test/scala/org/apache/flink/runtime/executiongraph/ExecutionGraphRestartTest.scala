@@ -55,10 +55,6 @@ class ExecutionGraphRestartTest extends WordSpecLike with Matchers {
 
         val jobGraph = new JobGraph("Pointwise job", JobType.BATCHING, sender)
 
-          
-          new JobID(),
-          "test job",
-          new Configuration(),
         val eg = new ExecutionGraph(TestingUtils.defaultExecutionContext, new JobID(), "test job",
           JobType.BATCHING, new Configuration(), AkkaUtils.getDefaultTimeout)
         eg.setNumberOfRetriesLeft(0)
