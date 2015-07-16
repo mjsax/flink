@@ -45,7 +45,6 @@ import org.apache.flink.runtime.client.JobStatusMessage;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobmanager.JobManager;
 import org.apache.flink.runtime.messages.JobManagerMessages;
-import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob;
 import org.apache.flink.runtime.messages.JobManagerMessages.RunningJobsStatus;
 
 import scala.Some;
@@ -159,8 +158,7 @@ public class FlinkClient {
 	 * Parameter {@code uploadedJarLocation} is actually used to point to the local jar, because Flink does not support
 	 * uploading a jar file before hand. Jar files are always uploaded directly when a program is submitted.
 	 */
-	public void submitTopologyWithOpts(final String name, final String uploadedJarLocation, final FlinkTopology
-			topology)
+	public void submitTopologyWithOpts(final String name, final String uploadedJarLocation, final FlinkTopology topology)
 			throws AlreadyAliveException, InvalidTopologyException {
 
 		if (this.getTopologyJobId(name) != null) {
@@ -185,12 +183,12 @@ public class FlinkClient {
 		final Client client;
 		try {
 			client = new Client(configuration);
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			throw new RuntimeException("Could not establish a connection to the job manager", e);
 		}
 
 		try {
-			ClassLoader classLoader = JobWithJars.buildUserCodeClassLoader(
+			final ClassLoader classLoader = JobWithJars.buildUserCodeClassLoader(
 					Lists.newArrayList(uploadedJarFile),
 					this.getClass().getClassLoader());
 			client.runDetached(jobGraph, classLoader);
@@ -206,7 +204,7 @@ public class FlinkClient {
 	public void killTopologyWithOpts(final String name, final KillOptions options) throws NotAliveException {
 		final JobID jobId = this.getTopologyJobId(name);
 		if (jobId == null) {
-			throw new NotAliveException();
+			throw new NotAliveException("Storm topology with name " + name + " not found.");
 		}
 
 		if (options != null) {
@@ -221,12 +219,17 @@ public class FlinkClient {
 		configuration.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, this.jobManagerHost);
 		configuration.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, this.jobManagerPort);
 
-		final Client client = new Client(configuration, JobWithJars.class.getClassLoader());
+		final Client client;
+		try {
+			client = new Client(configuration);
+		} catch (final IOException e) {
+			throw new RuntimeException("Could not establish a connection to the job manager", e);
+		}
 
 		try {
 			client.stop(jobId);
 		} catch (final Exception e) {
-			throw new RuntimeException("Cannot execute job due to ProgramStopException", e);
+			throw new RuntimeException("Cannot stop job.", e);
 		}
 	}
 
@@ -252,7 +255,7 @@ public class FlinkClient {
 			final Future<Object> response = Patterns.ask(jobManager, JobManagerMessages.getRequestRunningJobsStatus(),
 					new Timeout(askTimeout));
 
-			Object result;
+			final Object result;
 			try {
 				result = Await.result(response, askTimeout);
 			} catch (final Exception e) {

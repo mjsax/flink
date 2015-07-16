@@ -25,14 +25,18 @@ import backtype.storm.generated.RebalanceOptions;
 import backtype.storm.generated.StormTopology;
 import backtype.storm.generated.SubmitOptions;
 import backtype.storm.generated.TopologyInfo;
+
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.streaming.util.ClusterUtil;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * {@link FlinkLocalCluster} mimics a Storm {@link LocalCluster}.
  */
 public class FlinkLocalCluster {
+	private final HashMap<String, JobID> jobIdBuffer = new HashMap<String, JobID>();
 
 	public void submitTopology(final String topologyName, final Map<?, ?> conf, final FlinkTopology topology)
 			throws Exception {
@@ -41,7 +45,10 @@ public class FlinkLocalCluster {
 
 	public void submitTopologyWithOpts(final String topologyName, final Map<?, ?> conf, final FlinkTopology topology,
 			final SubmitOptions submitOpts) throws Exception {
-		ClusterUtil.startOnMiniCluster(topology.getStreamGraph().getJobGraph(topologyName), topology.getNumberOfTasks());
+		JobID jobId = ClusterUtil.startOnMiniCluster(
+				topology.getStreamGraph().getJobGraph(topologyName), topology.getNumberOfTasks())
+				.getJobID();
+		this.jobIdBuffer.put(topologyName, jobId);
 	}
 
 	public void killTopology(final String topologyName) {
@@ -49,6 +56,7 @@ public class FlinkLocalCluster {
 	}
 
 	public void killTopologyWithOpts(final String name, final KillOptions options) {
+		ClusterUtil.stopJobOnMiniCluser(this.jobIdBuffer.get(name));
 	}
 
 	public void activate(final String topologyName) {

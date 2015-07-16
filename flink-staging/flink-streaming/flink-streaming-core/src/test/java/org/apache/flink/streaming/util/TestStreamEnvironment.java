@@ -20,11 +20,15 @@ package org.apache.flink.streaming.util;
 
 import com.google.common.base.Preconditions;
 import org.apache.flink.api.common.JobExecutionResult;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.GlobalConfiguration;
+import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.jobgraph.JobGraph;
+import org.apache.flink.runtime.messages.JobManagerMessages.StopJob;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironmentFactory;
 import org.apache.flink.test.util.ForkableFlinkMiniCluster;
@@ -32,6 +36,10 @@ import org.apache.flink.test.util.ForkableFlinkMiniCluster;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.FiniteDuration;
+
+import akka.actor.ActorRef;
+import akka.pattern.Patterns;
+import akka.util.Timeout;
 
 public class TestStreamEnvironment extends StreamExecutionEnvironment {
 	private static final String DEFAULT_JOBNAME = "TestStreamingJob";
@@ -64,7 +72,7 @@ public class TestStreamEnvironment extends StreamExecutionEnvironment {
 		JobExecutionResult result = execute(getStreamGraph().getJobGraph(jobName));
 		return result;
 	}
-	
+
 	public JobExecutionResult execute(JobGraph jobGraph) throws Exception {
 		if (internalExecutor) {
 			Configuration configuration = jobGraph.getJobConfiguration();
@@ -118,6 +126,7 @@ public class TestStreamEnvironment extends StreamExecutionEnvironment {
 			sync = false;
 
 			jobRunner = new Thread() {
+				@Override
 				public void run() {
 					try {
 						latestResult = cluster.submitJobAndWait(jobGraph, false);

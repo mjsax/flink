@@ -67,8 +67,10 @@ public class StormWordCountLocal {
 
 		Utils.sleep(10 * 1000);
 
-		// TODO kill does no do anything so far
 		cluster.killTopology(topologyId);
+		// killing sends STOP signal, takes some time to clean up
+		Utils.sleep(1000);
+
 		cluster.shutdown();
 	}
 

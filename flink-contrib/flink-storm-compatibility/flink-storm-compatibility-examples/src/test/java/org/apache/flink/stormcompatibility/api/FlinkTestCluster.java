@@ -25,15 +25,20 @@ import backtype.storm.generated.RebalanceOptions;
 import backtype.storm.generated.StormTopology;
 import backtype.storm.generated.SubmitOptions;
 import backtype.storm.generated.TopologyInfo;
+
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.util.TestStreamEnvironment;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * {@link FlinkTestCluster} mimics a Storm {@link LocalCluster} for ITCases via a {@link TestStreamEnvironment}.
  */
 public class FlinkTestCluster extends FlinkLocalCluster {
+	private final HashMap<String, JobID> jobIdBuffer = new HashMap<String, JobID>();
 
 	@Override
 	public void submitTopology(final String topologyName, final Map<?, ?> conf, final FlinkTopology topology)
@@ -44,17 +49,25 @@ public class FlinkTestCluster extends FlinkLocalCluster {
 	@Override
 	public void submitTopologyWithOpts(final String topologyName, final Map<?, ?> conf, final FlinkTopology topology,
 			final SubmitOptions submitOpts)
-			throws Exception {
+					throws Exception {
 		final TestStreamEnvironment env = (TestStreamEnvironment) StreamExecutionEnvironment.getExecutionEnvironment();
-		env.start(topology.getStreamGraph().getJobGraph(topologyName));
+
+		JobGraph jobGraph = topology.getStreamGraph().getJobGraph(topologyName);
+		this.jobIdBuffer.put(topologyName, jobGraph.getJobID());
+
+		env.start(jobGraph);
 	}
 
 	@Override
 	public void killTopology(final String topologyName) {
+		this.killTopologyWithOpts(topologyName, null);
 	}
 
 	@Override
 	public void killTopologyWithOpts(final String name, final KillOptions options) {
+		final TestStreamEnvironment env = (TestStreamEnvironment) StreamExecutionEnvironment
+				.getExecutionEnvironment();
+		env.stopJob(this.jobIdBuffer.get(name));
 	}
 
 	@Override
