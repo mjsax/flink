@@ -19,12 +19,13 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.jobgraph.JobVertex;
+import org.apache.flink.util.TestLogger;
 import org.junit.Assert;
 import org.junit.Test;
 
 import static org.mockito.Mockito.mock;
 
-public class ExecutionJobVertexTest {
+public class ExecutionJobVertexTest extends TestLogger {
 
 	@Test
 	public void testReceivedStopSignal() throws JobException {

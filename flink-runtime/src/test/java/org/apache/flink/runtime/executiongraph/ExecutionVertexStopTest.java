@@ -29,6 +29,7 @@ import org.apache.flink.runtime.messages.Messages;
 import org.apache.flink.runtime.messages.TaskMessages;
 import org.apache.flink.runtime.messages.TaskMessages.TaskOperationResult;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.AfterClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,14 +44,13 @@ import static org.apache.flink.runtime.executiongraph.ExecutionGraphTestUtils.ge
 import static org.apache.flink.runtime.executiongraph.ExecutionGraphTestUtils.getInstance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.powermock.api.mockito.PowerMockito.whenNew;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(ExecutionVertex.class)
-public class ExecutionVertexStopTest {
+public class ExecutionVertexStopTest extends TestLogger {
 
 	@Test
 	public void testStop() throws Exception {
@@ -81,34 +81,28 @@ public class ExecutionVertexStopTest {
 	static boolean receivedStopSignal;
 
 	@Test
-	public void testStopRpc() {
-		try {
-			final JobVertexID jid = new JobVertexID();
-			final ExecutionJobVertex ejv = getExecutionVertex(jid);
+	public void testStopRpc() throws Exception {
+		final JobVertexID jid = new JobVertexID();
+		final ExecutionJobVertex ejv = getExecutionVertex(jid);
 
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
-			final ExecutionAttemptID execId = vertex.getCurrentExecutionAttempt().getAttemptId();
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
+		final ExecutionAttemptID execId = vertex.getCurrentExecutionAttempt().getAttemptId();
 
-			setVertexState(vertex, ExecutionState.SCHEDULED);
-			assertEquals(ExecutionState.SCHEDULED, vertex.getExecutionState());
+		setVertexState(vertex, ExecutionState.SCHEDULED);
+		assertEquals(ExecutionState.SCHEDULED, vertex.getExecutionState());
 
-			final ActorGateway gateway = new StopSequenceInstanceGateway(
-					TestingUtils.defaultExecutionContext(), new TaskOperationResult(execId, true));
+		final ActorGateway gateway = new StopSequenceInstanceGateway(
+				TestingUtils.defaultExecutionContext(), new TaskOperationResult(execId, true));
 
-			Instance instance = getInstance(gateway);
-			SimpleSlot slot = instance.allocateSimpleSlot(new JobID());
+		Instance instance = getInstance(gateway);
+		SimpleSlot slot = instance.allocateSimpleSlot(new JobID());
 
-			vertex.deployToSlot(slot);
+		vertex.deployToSlot(slot);
 
-			receivedStopSignal = false;
-			vertex.stop();
-			assertTrue(receivedStopSignal);
-		}
-		catch(Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		receivedStopSignal = false;
+		vertex.stop();
+		assertTrue(receivedStopSignal);
 	}
 
 	public static class StopSequenceInstanceGateway extends BaseTestingActorGateway {

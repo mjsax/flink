@@ -34,48 +34,43 @@ import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
-public class ExecutionStateProgressTest {
+public class ExecutionStateProgressTest extends TestLogger {
 
 	@Test
-	public void testAccumulatedStateFinished() {
-		try {
-			final JobID jid = new JobID();
-			final JobVertexID vid = new JobVertexID();
+	public void testAccumulatedStateFinished() throws Exception {
+		final JobID jid = new JobID();
+		final JobVertexID vid = new JobVertexID();
 
-			JobVertex ajv = new JobVertex("TestVertex", vid);
-			ajv.setParallelism(3);
-			ajv.setInvokableClass(mock(AbstractInvokable.class).getClass());
+		JobVertex ajv = new JobVertex("TestVertex", vid);
+		ajv.setParallelism(3);
+		ajv.setInvokableClass(mock(AbstractInvokable.class).getClass());
 
-			ExecutionGraph graph = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jid, "test job",
-					JobType.BATCHING, new Configuration(), AkkaUtils.getDefaultTimeout());
-			graph.attachJobGraph(Arrays.asList(ajv));
+		ExecutionGraph graph = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jid, "test job",
+				JobType.BATCHING, new Configuration(), AkkaUtils.getDefaultTimeout());
+		graph.attachJobGraph(Arrays.asList(ajv));
 
-			setGraphStatus(graph, JobStatus.RUNNING);
+		setGraphStatus(graph, JobStatus.RUNNING);
 
-			ExecutionJobVertex ejv = graph.getJobVertex(vid);
+		ExecutionJobVertex ejv = graph.getJobVertex(vid);
 
-			// mock resources and mock taskmanager
-			for (ExecutionVertex ee : ejv.getTaskVertices()) {
-				SimpleSlot slot = getInstance(
-						new SimpleActorGateway(
-								TestingUtils.defaultExecutionContext())
-				).allocateSimpleSlot(jid);
-				ee.deployToSlot(slot);
-			}
-
-			// finish all
-			for (ExecutionVertex ee : ejv.getTaskVertices()) {
-				ee.executionFinished();
-			}
-
-			assertTrue(ejv.isInFinalState());
-			assertEquals(JobStatus.FINISHED, graph.getState());
+		// mock resources and mock taskmanager
+		for (ExecutionVertex ee : ejv.getTaskVertices()) {
+			SimpleSlot slot = getInstance(
+					new SimpleActorGateway(
+							TestingUtils.defaultExecutionContext())
+			).allocateSimpleSlot(jid);
+			ee.deployToSlot(slot);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+
+		// finish all
+		for (ExecutionVertex ee : ejv.getTaskVertices()) {
+			ee.executionFinished();
 		}
+
+		assertTrue(ejv.isInFinalState());
+		assertEquals(JobStatus.FINISHED, graph.getState());
 	}
 }

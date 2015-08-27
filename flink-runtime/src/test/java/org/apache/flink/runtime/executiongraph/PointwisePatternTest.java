@@ -20,7 +20,6 @@ package org.apache.flink.runtime.executiongraph;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
@@ -34,18 +33,19 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
+import org.apache.flink.util.TestLogger;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobType;
 
 
-public class PointwisePatternTest {
+public class PointwisePatternTest extends TestLogger {
 
 	private final JobID jobId = new JobID();
 	private final String jobName = "Test Job Sample Name";
 	private final Configuration cfg = new Configuration();
 	
 	@Test
-	public void testNToN() {
+	public void testNToN() throws JobException {
 		final int N = 23;
 		
 		JobVertex v1 = new JobVertex("vertex1");
@@ -60,13 +60,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		
@@ -81,7 +75,7 @@ public class PointwisePatternTest {
 	}
 	
 	@Test
-	public void test2NToN() {
+	public void test2NToN() throws JobException {
 		final int N = 17;
 		
 		JobVertex v1 = new JobVertex("vertex1");
@@ -96,13 +90,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		
@@ -118,7 +106,7 @@ public class PointwisePatternTest {
 	}
 	
 	@Test
-	public void test3NToN() {
+	public void test3NToN() throws JobException {
 		final int N = 17;
 		
 		JobVertex v1 = new JobVertex("vertex1");
@@ -133,13 +121,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		
@@ -156,7 +138,7 @@ public class PointwisePatternTest {
 	}
 	
 	@Test
-	public void testNTo2N() {
+	public void testNTo2N() throws JobException {
 		final int N = 41;
 		
 		JobVertex v1 = new JobVertex("vertex1");
@@ -171,13 +153,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		
@@ -192,7 +168,7 @@ public class PointwisePatternTest {
 	}
 	
 	@Test
-	public void testNTo7N() {
+	public void testNTo7N() throws JobException {
 		final int N = 11;
 		
 		JobVertex v1 = new JobVertex("vertex1");
@@ -207,13 +183,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		
@@ -228,7 +198,7 @@ public class PointwisePatternTest {
 	}
 	
 	@Test
-	public void testLowHighIrregular() {
+	public void testLowHighIrregular() throws JobException {
 		testLowToHigh(3, 16);
 		testLowToHigh(19, 21);
 		testLowToHigh(15, 20);
@@ -236,14 +206,14 @@ public class PointwisePatternTest {
 	}
 	
 	@Test
-	public void testHighLowIrregular() {
+	public void testHighLowIrregular() throws JobException {
 		testHighToLow(16, 3);
 		testHighToLow(21, 19);
 		testHighToLow(20, 15);
 		testHighToLow(31, 11);
 	}
 	
-	private void testLowToHigh(int lowDop, int highDop) {
+	private void testLowToHigh(int lowDop, int highDop) throws JobException {
 		if (highDop < lowDop) {
 			throw new IllegalArgumentException();
 		}
@@ -263,13 +233,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		
@@ -290,7 +254,7 @@ public class PointwisePatternTest {
 		}
 	}
 	
-	private void testHighToLow(int highDop, int lowDop) {
+	private void testHighToLow(int highDop, int lowDop) throws JobException {
 		if (highDop < lowDop) {
 			throw new IllegalArgumentException();
 		}
@@ -310,13 +274,7 @@ public class PointwisePatternTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 				JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		ExecutionJobVertex target = eg.getAllVertices().get(v2.getID());
 		

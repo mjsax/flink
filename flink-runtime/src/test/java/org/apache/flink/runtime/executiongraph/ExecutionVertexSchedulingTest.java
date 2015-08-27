@@ -33,101 +33,83 @@ import org.apache.flink.runtime.jobmanager.scheduler.Scheduler;
 import org.apache.flink.runtime.jobmanager.scheduler.ScheduledUnit;
 import org.apache.flink.runtime.jobmanager.scheduler.SlotAllocationFuture;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
-
 import org.mockito.Matchers;
 
-public class ExecutionVertexSchedulingTest {
+public class ExecutionVertexSchedulingTest extends TestLogger {
 
 	@Test
-	public void testSlotReleasedWhenScheduledImmediately() {
-		try {
-			final ExecutionJobVertex ejv = getExecutionVertex(new JobVertexID());
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+	public void testSlotReleasedWhenScheduledImmediately() throws Exception {
+		final ExecutionJobVertex ejv = getExecutionVertex(new JobVertexID());
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			// a slot than cannot be deployed to
-			final Instance instance = getInstance(DummyActorGateway.INSTANCE);
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
-			
-			slot.releaseSlot();
-			assertTrue(slot.isReleased());
+		// a slot than cannot be deployed to
+		final Instance instance = getInstance(DummyActorGateway.INSTANCE);
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		
+		slot.releaseSlot();
+		assertTrue(slot.isReleased());
 
-			Scheduler scheduler = mock(Scheduler.class);
-			when(scheduler.scheduleImmediately(Matchers.any(ScheduledUnit.class))).thenReturn(slot);
+		Scheduler scheduler = mock(Scheduler.class);
+		when(scheduler.scheduleImmediately(Matchers.any(ScheduledUnit.class))).thenReturn(slot);
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
-			// try to deploy to the slot
-			vertex.scheduleForExecution(scheduler, false);
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		// try to deploy to the slot
+		vertex.scheduleForExecution(scheduler, false);
 
-			// will have failed
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		// will have failed
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
 	}
 
 	@Test
-	public void testSlotReleasedWhenScheduledQueued() {
-		try {
-			final ExecutionJobVertex ejv = getExecutionVertex(new JobVertexID());
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+	public void testSlotReleasedWhenScheduledQueued() throws Exception {
+		final ExecutionJobVertex ejv = getExecutionVertex(new JobVertexID());
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			// a slot than cannot be deployed to
-			final Instance instance = getInstance(DummyActorGateway.INSTANCE);
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		// a slot than cannot be deployed to
+		final Instance instance = getInstance(DummyActorGateway.INSTANCE);
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
 
-			slot.releaseSlot();
-			assertTrue(slot.isReleased());
+		slot.releaseSlot();
+		assertTrue(slot.isReleased());
 
-			final SlotAllocationFuture future = new SlotAllocationFuture();
+		final SlotAllocationFuture future = new SlotAllocationFuture();
 
-			Scheduler scheduler = mock(Scheduler.class);
-			when(scheduler.scheduleQueued(Matchers.any(ScheduledUnit.class))).thenReturn(future);
+		Scheduler scheduler = mock(Scheduler.class);
+		when(scheduler.scheduleQueued(Matchers.any(ScheduledUnit.class))).thenReturn(future);
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
-			// try to deploy to the slot
-			vertex.scheduleForExecution(scheduler, true);
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		// try to deploy to the slot
+		vertex.scheduleForExecution(scheduler, true);
 
-			// future has not yet a slot
-			assertEquals(ExecutionState.SCHEDULED, vertex.getExecutionState());
+		// future has not yet a slot
+		assertEquals(ExecutionState.SCHEDULED, vertex.getExecutionState());
 
-			future.setSlot(slot);
+		future.setSlot(slot);
 
-			// will have failed
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		// will have failed
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
 	}
 
 	@Test
-	public void testScheduleToDeploying() {
-		try {
-			final ExecutionJobVertex ejv = getExecutionVertex(new JobVertexID());
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+	public void testScheduleToDeploying() throws Exception {
+		final ExecutionJobVertex ejv = getExecutionVertex(new JobVertexID());
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			final Instance instance = getInstance(new ExecutionGraphTestUtils.SimpleActorGateway(TestingUtils.defaultExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		final Instance instance = getInstance(new ExecutionGraphTestUtils.SimpleActorGateway(TestingUtils.defaultExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
 
-			Scheduler scheduler = mock(Scheduler.class);
-			when(scheduler.scheduleImmediately(Matchers.any(ScheduledUnit.class))).thenReturn(slot);
+		Scheduler scheduler = mock(Scheduler.class);
+		when(scheduler.scheduleImmediately(Matchers.any(ScheduledUnit.class))).thenReturn(slot);
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
 
-			// try to deploy to the slot
-			vertex.scheduleForExecution(scheduler, false);
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		// try to deploy to the slot
+		vertex.scheduleForExecution(scheduler, false);
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
 	}
 }

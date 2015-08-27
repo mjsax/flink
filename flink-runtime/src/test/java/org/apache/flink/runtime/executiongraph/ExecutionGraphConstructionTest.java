@@ -50,16 +50,18 @@ import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSet;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.JobGraph;
+import org.apache.flink.api.common.InvalidProgramException;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobType;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobmanager.scheduler.CoLocationConstraint;
 import org.apache.flink.runtime.jobmanager.scheduler.SlotSharingGroup;
+import org.apache.flink.util.TestLogger;
 
 /**
  * This class contains test concerning the correct conversion from {@link JobGraph} to {@link ExecutionGraph} objects.
  */
-public class ExecutionGraphConstructionTest {
+public class ExecutionGraphConstructionTest extends TestLogger {
 	
 	/**
 	 * Creates a JobGraph of the following form:
@@ -115,7 +117,7 @@ public class ExecutionGraphConstructionTest {
 	}
 	
 	@Test
-	public void testAttachViaDataSets() {
+	public void testAttachViaDataSets() throws JobException {
 		final JobID jobId = new JobID();
 		final String jobName = "Test Job Sample Name";
 		final Configuration cfg = new Configuration();
@@ -142,13 +144,7 @@ public class ExecutionGraphConstructionTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		// attach the second part of the graph
 		
@@ -163,21 +159,14 @@ public class ExecutionGraphConstructionTest {
 		v5.connectDataSetAsInput(v3result_2, DistributionPattern.ALL_TO_ALL);
 		
 		List<JobVertex> ordered2 = new ArrayList<JobVertex>(Arrays.asList(v4, v5));
-		
-		try {
-			eg.attachJobGraph(ordered2);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered2);
 		
 		// verify
 		verifyTestGraph(eg, jobId, v1, v2, v3, v4, v5);
 	}
 	
 	@Test
-	public void testAttachViaIds() {
+	public void testAttachViaIds() throws JobException {
 		final JobID jobId = new JobID();
 		final String jobName = "Test Job Sample Name";
 		final Configuration cfg = new Configuration();
@@ -204,13 +193,7 @@ public class ExecutionGraphConstructionTest {
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-		try {
-			eg.attachJobGraph(ordered);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered);
 		
 		// attach the second part of the graph
 		
@@ -225,14 +208,7 @@ public class ExecutionGraphConstructionTest {
 		v5.connectIdInput(v3result_2.getId(), DistributionPattern.ALL_TO_ALL);
 		
 		List<JobVertex> ordered2 = new ArrayList<JobVertex>(Arrays.asList(v4, v5));
-		
-		try {
-			eg.attachJobGraph(ordered2);
-		}
-		catch (JobException e) {
-			e.printStackTrace();
-			fail("Job failed with exception: " + e.getMessage());
-		}
+		eg.attachJobGraph(ordered2);
 		
 		// verify
 		verifyTestGraph(eg, jobId, v1, v2, v3, v4, v5);
@@ -439,8 +415,8 @@ public class ExecutionGraphConstructionTest {
 		}
 	}
 	
-	@Test
-	public void testCannotConnectMissingId() {
+	@Test(expected = JobException.class)
+	public void testCannotConnectMissingId() throws JobException {
 		final JobID jobId = new JobID();
 		final String jobName = "Test Job Sample Name";
 		final Configuration cfg = new Configuration();
@@ -450,7 +426,7 @@ public class ExecutionGraphConstructionTest {
 		v1.setParallelism(7);
 		
 		List<JobVertex> ordered = new ArrayList<JobVertex>(Arrays.asList(v1));
-
+		
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
 		try {
@@ -467,17 +443,11 @@ public class ExecutionGraphConstructionTest {
 		
 		List<JobVertex> ordered2 = new ArrayList<JobVertex>(Arrays.asList(v2));
 		
-		try {
-			eg.attachJobGraph(ordered2);
-			fail("Attached wrong jobgraph");
-		}
-		catch (JobException e) {
-			// expected
-		}
+		eg.attachJobGraph(ordered2);
 	}
 
-	@Test
-	public void testCannotConnectWrongOrder() {
+	@Test(expected = JobException.class)
+	public void testCannotConnectWrongOrder() throws JobException {
 		final JobID jobId = new JobID();
 		final String jobName = "Test Job Sample Name";
 		final Configuration cfg = new Configuration();
@@ -501,229 +471,200 @@ public class ExecutionGraphConstructionTest {
 		v5.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL);
 		
 		List<JobVertex> ordered = new ArrayList<JobVertex>(Arrays.asList(v1, v2, v3, v5, v4));
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
+							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
+		
+		eg.attachJobGraph(ordered);
+	}
+	
+	@Test
+	public void testSetupInputSplits() throws Exception {
+		final InputSplit[] emptySplits = new InputSplit[0];
+		
+		InputSplitAssigner assigner1 = mock(InputSplitAssigner.class);
+		InputSplitAssigner assigner2 = mock(InputSplitAssigner.class);
+		
+		@SuppressWarnings("unchecked")
+		InputSplitSource<InputSplit> source1 = mock(InputSplitSource.class);
+		@SuppressWarnings("unchecked")
+		InputSplitSource<InputSplit> source2 = mock(InputSplitSource.class);
+		
+		when(source1.createInputSplits(Matchers.anyInt())).thenReturn(emptySplits);
+		when(source2.createInputSplits(Matchers.anyInt())).thenReturn(emptySplits);
+		when(source1.getInputSplitAssigner(emptySplits)).thenReturn(assigner1);
+		when(source2.getInputSplitAssigner(emptySplits)).thenReturn(assigner2);
+		
+		final JobID jobId = new JobID();
+		final String jobName = "Test Job Sample Name";
+		final Configuration cfg = new Configuration();
+		
+		JobVertex v1 = new JobVertex("vertex1");
+		JobVertex v2 = new JobVertex("vertex2");
+		JobVertex v3 = new JobVertex("vertex3");
+		JobVertex v4 = new JobVertex("vertex4");
+		JobVertex v5 = new JobVertex("vertex5");
+		
+		v1.setParallelism(5);
+		v2.setParallelism(7);
+		v3.setParallelism(2);
+		v4.setParallelism(11);
+		v5.setParallelism(4);
+		
+		v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL);
+		v4.connectNewDataSetAsInput(v2, DistributionPattern.ALL_TO_ALL);
+		v4.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL);
+		v5.connectNewDataSetAsInput(v4, DistributionPattern.ALL_TO_ALL);
+		v5.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL);
+		
+		v3.setInputSplitSource(source1);
+		v5.setInputSplitSource(source2);
+		
+		List<JobVertex> ordered = new ArrayList<JobVertex>(Arrays.asList(v1, v2, v3, v4, v5));
 
 		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
 							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
+		eg.attachJobGraph(ordered);
+		
+		assertEquals(assigner1, eg.getAllVertices().get(v3.getID()).getSplitAssigner());
+		assertEquals(assigner2, eg.getAllVertices().get(v5.getID()).getSplitAssigner());
+	}
+	
+	@Test
+	public void testMoreThanOneConsumerForIntermediateResult() throws JobException {
+		final JobID jobId = new JobID();
+		final String jobName = "Test Job Sample Name";
+		final Configuration cfg = new Configuration();
+		
+		JobVertex v1 = new JobVertex("vertex1");
+		JobVertex v2 = new JobVertex("vertex2");
+		JobVertex v3 = new JobVertex("vertex3");
+		
+		v1.setParallelism(5);
+		v2.setParallelism(7);
+		v3.setParallelism(2);
+
+		IntermediateDataSet result = v1.createAndAddResultDataSet(ResultPartitionType.PIPELINED);
+		v2.connectDataSetAsInput(result, DistributionPattern.ALL_TO_ALL);
+		v3.connectDataSetAsInput(result, DistributionPattern.ALL_TO_ALL);
+		
+		List<JobVertex> ordered = new ArrayList<JobVertex>(Arrays.asList(v1, v2, v3));
+
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
+							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
+
 		try {
 			eg.attachJobGraph(ordered);
-			fail("Attached wrong jobgraph");
+			fail("Should not be possible");
 		}
-		catch (JobException e) {
+		catch (RuntimeException e) {
 			// expected
 		}
 	}
 	
 	@Test
-	public void testSetupInputSplits() {
-		try {
-			final InputSplit[] emptySplits = new InputSplit[0];
+	public void testCoLocationConstraintCreation() throws InvalidProgramException, JobException {
+		final JobID jobId = new JobID();
+		final String jobName = "Co-Location Constraint Sample Job";
+		final Configuration cfg = new Configuration();
+		
+		// simple group of two, cyclic
+		JobVertex v1 = new JobVertex("vertex1");
+		JobVertex v2 = new JobVertex("vertex2");
+		v1.setParallelism(6);
+		v2.setParallelism(4);
+		
+		SlotSharingGroup sl1 = new SlotSharingGroup();
+		v1.setSlotSharingGroup(sl1);
+		v2.setSlotSharingGroup(sl1);
+		v2.setStrictlyCoLocatedWith(v1);
+		v1.setStrictlyCoLocatedWith(v2);
+		
+		// complex forked dependency pattern
+		JobVertex v3 = new JobVertex("vertex3");
+		JobVertex v4 = new JobVertex("vertex4");
+		JobVertex v5 = new JobVertex("vertex5");
+		JobVertex v6 = new JobVertex("vertex6");
+		JobVertex v7 = new JobVertex("vertex7");
+		v3.setParallelism(3);
+		v4.setParallelism(3);
+		v5.setParallelism(3);
+		v6.setParallelism(3);
+		v7.setParallelism(3);
+		
+		SlotSharingGroup sl2 = new SlotSharingGroup();
+		v3.setSlotSharingGroup(sl2);
+		v4.setSlotSharingGroup(sl2);
+		v5.setSlotSharingGroup(sl2);
+		v6.setSlotSharingGroup(sl2);
+		v7.setSlotSharingGroup(sl2);
+		
+		v4.setStrictlyCoLocatedWith(v3);
+		v5.setStrictlyCoLocatedWith(v4);
+		v6.setStrictlyCoLocatedWith(v3);
+		v3.setStrictlyCoLocatedWith(v7);
+		
+		// isolated vertex
+		JobVertex v8 = new JobVertex("vertex8");
+		v8.setParallelism(2);
+		
+		JobGraph jg = new JobGraph(jobId, jobName, JobType.BATCHING, v1, v2, v3, v4, v5, v6, v7, v8);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
+							JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
+		eg.attachJobGraph(jg.getVerticesSortedTopologicallyFromSources());
+		
+		// check the v1 / v2 co location hints ( assumes parallelism(v1) >= parallelism(v2) )
+		{
+			ExecutionVertex[] v1s = eg.getJobVertex(v1.getID()).getTaskVertices();
+			ExecutionVertex[] v2s = eg.getJobVertex(v2.getID()).getTaskVertices();
 			
-			InputSplitAssigner assigner1 = mock(InputSplitAssigner.class);
-			InputSplitAssigner assigner2 = mock(InputSplitAssigner.class);
+			Set<CoLocationConstraint> all = new HashSet<CoLocationConstraint>();
 			
-			@SuppressWarnings("unchecked")
-			InputSplitSource<InputSplit> source1 = mock(InputSplitSource.class);
-			@SuppressWarnings("unchecked")
-			InputSplitSource<InputSplit> source2 = mock(InputSplitSource.class);
-			
-			when(source1.createInputSplits(Matchers.anyInt())).thenReturn(emptySplits);
-			when(source2.createInputSplits(Matchers.anyInt())).thenReturn(emptySplits);
-			when(source1.getInputSplitAssigner(emptySplits)).thenReturn(assigner1);
-			when(source2.getInputSplitAssigner(emptySplits)).thenReturn(assigner2);
-			
-			final JobID jobId = new JobID();
-			final String jobName = "Test Job Sample Name";
-			final Configuration cfg = new Configuration();
-			
-			JobVertex v1 = new JobVertex("vertex1");
-			JobVertex v2 = new JobVertex("vertex2");
-			JobVertex v3 = new JobVertex("vertex3");
-			JobVertex v4 = new JobVertex("vertex4");
-			JobVertex v5 = new JobVertex("vertex5");
-			
-			v1.setParallelism(5);
-			v2.setParallelism(7);
-			v3.setParallelism(2);
-			v4.setParallelism(11);
-			v5.setParallelism(4);
-			
-			v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL);
-			v4.connectNewDataSetAsInput(v2, DistributionPattern.ALL_TO_ALL);
-			v4.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL);
-			v5.connectNewDataSetAsInput(v4, DistributionPattern.ALL_TO_ALL);
-			v5.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL);
-			
-			v3.setInputSplitSource(source1);
-			v5.setInputSplitSource(source2);
-			
-			List<JobVertex> ordered = new ArrayList<JobVertex>(Arrays.asList(v1, v2, v3, v4, v5));
-
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
-								JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-			try {
-				eg.attachJobGraph(ordered);
+			for (int i = 0; i < v2.getParallelism(); i++) {
+				assertNotNull(v1s[i].getLocationConstraint());
+				assertNotNull(v2s[i].getLocationConstraint());
+				assertTrue(v1s[i].getLocationConstraint() == v2s[i].getLocationConstraint());
+				all.add(v1s[i].getLocationConstraint());
 			}
-			catch (JobException e) {
-				e.printStackTrace();
-				fail("Job failed with exception: " + e.getMessage());
+			
+			for (int i = v2.getParallelism(); i < v1.getParallelism(); i++) {
+				assertNotNull(v1s[i].getLocationConstraint());
+				all.add(v1s[i].getLocationConstraint());
 			}
 			
-			assertEquals(assigner1, eg.getAllVertices().get(v3.getID()).getSplitAssigner());
-			assertEquals(assigner2, eg.getAllVertices().get(v5.getID()).getSplitAssigner());
+			assertEquals("not all co location constraints are distinct", v1.getParallelism(), all.size());
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		
+		// check the v1 / v2 co location hints ( assumes parallelism(v1) >= parallelism(v2) )
+		{
+			ExecutionVertex[] v3s = eg.getJobVertex(v3.getID()).getTaskVertices();
+			ExecutionVertex[] v4s = eg.getJobVertex(v4.getID()).getTaskVertices();
+			ExecutionVertex[] v5s = eg.getJobVertex(v5.getID()).getTaskVertices();
+			ExecutionVertex[] v6s = eg.getJobVertex(v6.getID()).getTaskVertices();
+			ExecutionVertex[] v7s = eg.getJobVertex(v7.getID()).getTaskVertices();
+			
+			Set<CoLocationConstraint> all = new HashSet<CoLocationConstraint>();
+			
+			for (int i = 0; i < v3.getParallelism(); i++) {
+				assertNotNull(v3s[i].getLocationConstraint());
+				assertTrue(v3s[i].getLocationConstraint() == v4s[i].getLocationConstraint());
+				assertTrue(v4s[i].getLocationConstraint() == v5s[i].getLocationConstraint());
+				assertTrue(v5s[i].getLocationConstraint() == v6s[i].getLocationConstraint());
+				assertTrue(v6s[i].getLocationConstraint() == v7s[i].getLocationConstraint());
+				all.add(v3s[i].getLocationConstraint());
+			}
+			
+			assertEquals("not all co location constraints are distinct", v3.getParallelism(), all.size());
 		}
-	}
-	
-	@Test
-	public void testMoreThanOneConsumerForIntermediateResult() {
-		try {
-			final JobID jobId = new JobID();
-			final String jobName = "Test Job Sample Name";
-			final Configuration cfg = new Configuration();
+		
+		// check the v8 has no co location hints
+		{
+			ExecutionVertex[] v8s = eg.getJobVertex(v8.getID()).getTaskVertices();
 			
-			JobVertex v1 = new JobVertex("vertex1");
-			JobVertex v2 = new JobVertex("vertex2");
-			JobVertex v3 = new JobVertex("vertex3");
-			
-			v1.setParallelism(5);
-			v2.setParallelism(7);
-			v3.setParallelism(2);
-
-			IntermediateDataSet result = v1.createAndAddResultDataSet(ResultPartitionType.PIPELINED);
-			v2.connectDataSetAsInput(result, DistributionPattern.ALL_TO_ALL);
-			v3.connectDataSetAsInput(result, DistributionPattern.ALL_TO_ALL);
-			
-			List<JobVertex> ordered = new ArrayList<JobVertex>(Arrays.asList(v1, v2, v3));
-
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
-								JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-
-			try {
-				eg.attachJobGraph(ordered);
-				fail("Should not be possible");
+			for (int i = 0; i < v8.getParallelism(); i++) {
+				assertNull(v8s[i].getLocationConstraint());
 			}
-			catch (RuntimeException e) {
-				// expected
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
-	}
-	
-	@Test
-	public void testCoLocationConstraintCreation() {
-		try {
-			final JobID jobId = new JobID();
-			final String jobName = "Co-Location Constraint Sample Job";
-			final Configuration cfg = new Configuration();
-			
-			// simple group of two, cyclic
-			JobVertex v1 = new JobVertex("vertex1");
-			JobVertex v2 = new JobVertex("vertex2");
-			v1.setParallelism(6);
-			v2.setParallelism(4);
-			
-			SlotSharingGroup sl1 = new SlotSharingGroup();
-			v1.setSlotSharingGroup(sl1);
-			v2.setSlotSharingGroup(sl1);
-			v2.setStrictlyCoLocatedWith(v1);
-			v1.setStrictlyCoLocatedWith(v2);
-			
-			// complex forked dependency pattern
-			JobVertex v3 = new JobVertex("vertex3");
-			JobVertex v4 = new JobVertex("vertex4");
-			JobVertex v5 = new JobVertex("vertex5");
-			JobVertex v6 = new JobVertex("vertex6");
-			JobVertex v7 = new JobVertex("vertex7");
-			v3.setParallelism(3);
-			v4.setParallelism(3);
-			v5.setParallelism(3);
-			v6.setParallelism(3);
-			v7.setParallelism(3);
-			
-			SlotSharingGroup sl2 = new SlotSharingGroup();
-			v3.setSlotSharingGroup(sl2);
-			v4.setSlotSharingGroup(sl2);
-			v5.setSlotSharingGroup(sl2);
-			v6.setSlotSharingGroup(sl2);
-			v7.setSlotSharingGroup(sl2);
-			
-			v4.setStrictlyCoLocatedWith(v3);
-			v5.setStrictlyCoLocatedWith(v4);
-			v6.setStrictlyCoLocatedWith(v3);
-			v3.setStrictlyCoLocatedWith(v7);
-			
-			// isolated vertex
-			JobVertex v8 = new JobVertex("vertex8");
-			v8.setParallelism(2);
-			
-			JobGraph jg = new JobGraph(jobId, jobName, JobType.BATCHING, v1, v2, v3, v4, v5, v6, v7, v8);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, jobName,
-								JobType.BATCHING, cfg, AkkaUtils.getDefaultTimeout());
-			eg.attachJobGraph(jg.getVerticesSortedTopologicallyFromSources());
-			
-			// check the v1 / v2 co location hints ( assumes parallelism(v1) >= parallelism(v2) )
-			{
-				ExecutionVertex[] v1s = eg.getJobVertex(v1.getID()).getTaskVertices();
-				ExecutionVertex[] v2s = eg.getJobVertex(v2.getID()).getTaskVertices();
-				
-				Set<CoLocationConstraint> all = new HashSet<CoLocationConstraint>();
-				
-				for (int i = 0; i < v2.getParallelism(); i++) {
-					assertNotNull(v1s[i].getLocationConstraint());
-					assertNotNull(v2s[i].getLocationConstraint());
-					assertTrue(v1s[i].getLocationConstraint() == v2s[i].getLocationConstraint());
-					all.add(v1s[i].getLocationConstraint());
-				}
-				
-				for (int i = v2.getParallelism(); i < v1.getParallelism(); i++) {
-					assertNotNull(v1s[i].getLocationConstraint());
-					all.add(v1s[i].getLocationConstraint());
-				}
-				
-				assertEquals("not all co location constraints are distinct", v1.getParallelism(), all.size());
-			}
-			
-			// check the v1 / v2 co location hints ( assumes parallelism(v1) >= parallelism(v2) )
-			{
-				ExecutionVertex[] v3s = eg.getJobVertex(v3.getID()).getTaskVertices();
-				ExecutionVertex[] v4s = eg.getJobVertex(v4.getID()).getTaskVertices();
-				ExecutionVertex[] v5s = eg.getJobVertex(v5.getID()).getTaskVertices();
-				ExecutionVertex[] v6s = eg.getJobVertex(v6.getID()).getTaskVertices();
-				ExecutionVertex[] v7s = eg.getJobVertex(v7.getID()).getTaskVertices();
-				
-				Set<CoLocationConstraint> all = new HashSet<CoLocationConstraint>();
-				
-				for (int i = 0; i < v3.getParallelism(); i++) {
-					assertNotNull(v3s[i].getLocationConstraint());
-					assertTrue(v3s[i].getLocationConstraint() == v4s[i].getLocationConstraint());
-					assertTrue(v4s[i].getLocationConstraint() == v5s[i].getLocationConstraint());
-					assertTrue(v5s[i].getLocationConstraint() == v6s[i].getLocationConstraint());
-					assertTrue(v6s[i].getLocationConstraint() == v7s[i].getLocationConstraint());
-					all.add(v3s[i].getLocationConstraint());
-				}
-				
-				assertEquals("not all co location constraints are distinct", v3.getParallelism(), all.size());
-			}
-			
-			// check the v8 has no co location hints
-			{
-				ExecutionVertex[] v8s = eg.getJobVertex(v8.getID()).getTaskVertices();
-				
-				for (int i = 0; i < v8.getParallelism(); i++) {
-					assertNull(v8s[i].getLocationConstraint());
-				}
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
 		}
 	}
 }

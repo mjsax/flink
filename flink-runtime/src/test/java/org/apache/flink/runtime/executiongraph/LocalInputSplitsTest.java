@@ -40,18 +40,19 @@ import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobmanager.scheduler.Scheduler;
 import org.apache.flink.runtime.operators.testutils.DummyInvokable;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import scala.concurrent.duration.FiniteDuration;
 
-public class LocalInputSplitsTest {
+public class LocalInputSplitsTest extends TestLogger {
 	
 	private static final FiniteDuration TIMEOUT = new FiniteDuration(100, TimeUnit.SECONDS);
 	
 	// --------------------------------------------------------------------------------------------
 	
-	@Test
-	public void testNotEnoughSubtasks() {
+	@Test(expected = JobException.class)
+	public void testNotEnoughSubtasks() throws Exception {
 		int numHosts = 3;
 		int slotsPerHost = 1;
 		int parallelism = 2;
@@ -64,21 +65,11 @@ public class LocalInputSplitsTest {
 		
 		// This should fail with an exception, since the parallelism of 2 does not
 		// support strictly local assignment onto 3 hosts
-		try {
-			runTests(numHosts, slotsPerHost, parallelism, splits);
-			fail("should throw an exception");
-		}
-		catch (JobException e) {
-			// what a great day!
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		runTests(numHosts, slotsPerHost, parallelism, splits);
 	}
 	
-	@Test
-	public void testDisallowMultipleLocations() {
+	@Test(expected = JobException.class)
+	public void testDisallowMultipleLocations() throws Exception {
 		int numHosts = 2;
 		int slotsPerHost = 1;
 		int parallelism = 2;
@@ -90,21 +81,11 @@ public class LocalInputSplitsTest {
 		
 		// This should fail with an exception, since strictly local assignment
 		// currently supports only one choice of host
-		try {
-			runTests(numHosts, slotsPerHost, parallelism, splits);
-			fail("should throw an exception");
-		}
-		catch (JobException e) {
-			// dandy!
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		runTests(numHosts, slotsPerHost, parallelism, splits);
 	}
 	
-	@Test
-	public void testNonExistentHost() {
+	@Test(expected = JobException.class)
+	public void testNonExistentHost() throws Exception {
 		int numHosts = 2;
 		int slotsPerHost = 1;
 		int parallelism = 2;
@@ -115,21 +96,11 @@ public class LocalInputSplitsTest {
 		};
 		
 		// This should fail with an exception, since one of the hosts does not exist
-		try {
-			runTests(numHosts, slotsPerHost, parallelism, splits);
-			fail("should throw an exception");
-		}
-		catch (JobException e) {
-			// dandy!
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		runTests(numHosts, slotsPerHost, parallelism, splits);
 	}
 	
 	@Test
-	public void testEqualSplitsPerHostAndSubtask() {
+	public void testEqualSplitsPerHostAndSubtask() throws Exception {
 		int numHosts = 5;
 		int slotsPerHost = 2;
 		int parallelism = 10;
@@ -147,28 +118,22 @@ public class LocalInputSplitsTest {
 				new TestLocatableInputSplit(10, "host5")
 		};
 		
-		try {
-			String[] hostsForTasks = runTests(numHosts, slotsPerHost, parallelism, splits);
-			
-			assertEquals("host1", hostsForTasks[0]);
-			assertEquals("host1", hostsForTasks[1]);
-			assertEquals("host2", hostsForTasks[2]);
-			assertEquals("host2", hostsForTasks[3]);
-			assertEquals("host3", hostsForTasks[4]);
-			assertEquals("host3", hostsForTasks[5]);
-			assertEquals("host4", hostsForTasks[6]);
-			assertEquals("host4", hostsForTasks[7]);
-			assertEquals("host5", hostsForTasks[8]);
-			assertEquals("host5", hostsForTasks[9]);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		String[] hostsForTasks = runTests(numHosts, slotsPerHost, parallelism, splits);
+		
+		assertEquals("host1", hostsForTasks[0]);
+		assertEquals("host1", hostsForTasks[1]);
+		assertEquals("host2", hostsForTasks[2]);
+		assertEquals("host2", hostsForTasks[3]);
+		assertEquals("host3", hostsForTasks[4]);
+		assertEquals("host3", hostsForTasks[5]);
+		assertEquals("host4", hostsForTasks[6]);
+		assertEquals("host4", hostsForTasks[7]);
+		assertEquals("host5", hostsForTasks[8]);
+		assertEquals("host5", hostsForTasks[9]);
 	}
 	
 	@Test
-	public void testNonEqualSplitsPerhost() {
+	public void testNonEqualSplitsPerhost() throws Exception {
 		int numHosts = 3;
 		int slotsPerHost = 2;
 		int parallelism = 5;
@@ -184,23 +149,17 @@ public class LocalInputSplitsTest {
 				new TestLocatableInputSplit(8, "host2")
 		};
 		
-		try {
-			String[] hostsForTasks = runTests(numHosts, slotsPerHost, parallelism, splits);
-			
-			assertEquals("host1", hostsForTasks[0]);
-			assertEquals("host1", hostsForTasks[1]);
-			assertEquals("host2", hostsForTasks[2]);
-			assertEquals("host2", hostsForTasks[3]);
-			assertEquals("host3", hostsForTasks[4]);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		String[] hostsForTasks = runTests(numHosts, slotsPerHost, parallelism, splits);
+		
+		assertEquals("host1", hostsForTasks[0]);
+		assertEquals("host1", hostsForTasks[1]);
+		assertEquals("host2", hostsForTasks[2]);
+		assertEquals("host2", hostsForTasks[3]);
+		assertEquals("host3", hostsForTasks[4]);
 	}
 	
 	@Test
-	public void testWithSubtasksEmpty() {
+	public void testWithSubtasksEmpty() throws Exception {
 		int numHosts = 3;
 		int slotsPerHost = 5;
 		int parallelism = 7;
@@ -225,29 +184,23 @@ public class LocalInputSplitsTest {
 				new TestLocatableInputSplit(13, "host3")
 		};
 		
-		try {
-			String[] hostsForTasks = runTests(numHosts, slotsPerHost, parallelism, splits);
-			
-			assertEquals("host1", hostsForTasks[0]);
-			
-			assertEquals("host2", hostsForTasks[1]);
-			assertEquals("host2", hostsForTasks[2]);
+		String[] hostsForTasks = runTests(numHosts, slotsPerHost, parallelism, splits);
+		
+		assertEquals("host1", hostsForTasks[0]);
+		
+		assertEquals("host2", hostsForTasks[1]);
+		assertEquals("host2", hostsForTasks[2]);
 
-			assertEquals("host3", hostsForTasks[3]);
-			assertEquals("host3", hostsForTasks[4]);
-			
-			// the current assignment leaves those with empty constraints
-			assertTrue(hostsForTasks[5].equals("host1") || hostsForTasks[5].equals("host2") || hostsForTasks[5].equals("host3"));
-			assertTrue(hostsForTasks[6].equals("host1") || hostsForTasks[6].equals("host2") || hostsForTasks[6].equals("host3"));
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertEquals("host3", hostsForTasks[3]);
+		assertEquals("host3", hostsForTasks[4]);
+		
+		// the current assignment leaves those with empty constraints
+		assertTrue(hostsForTasks[5].equals("host1") || hostsForTasks[5].equals("host2") || hostsForTasks[5].equals("host3"));
+		assertTrue(hostsForTasks[6].equals("host1") || hostsForTasks[6].equals("host2") || hostsForTasks[6].equals("host3"));
 	}
 
 	@Test
-	public void testMultipleInstancesPerHost() {
+	public void testMultipleInstancesPerHost() throws Exception {
 
 		TestLocatableInputSplit[] splits = new TestLocatableInputSplit[] {
 				new TestLocatableInputSplit(1, "host1"),
@@ -258,58 +211,52 @@ public class LocalInputSplitsTest {
 				new TestLocatableInputSplit(6, "host3")
 		};
 		
-		try {
-			JobVertex vertex = new JobVertex("test vertex");
-			vertex.setParallelism(6);
-			vertex.setInvokableClass(DummyInvokable.class);
-			vertex.setInputSplitSource(new TestInputSplitSource(splits));
-			
-			JobGraph jobGraph = new JobGraph("test job", JobType.BATCHING, vertex);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobGraph.getJobID(),
-					jobGraph.getName(), jobGraph.getType(), jobGraph.getJobConfiguration(), TIMEOUT);
-			
-			eg.attachJobGraph(jobGraph.getVerticesSortedTopologicallyFromSources());
-			eg.setQueuedSchedulingAllowed(false);
-			
-			// create a scheduler with 6 instances where always two are on the same host
-			Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
-			Instance i1 = getInstance(new byte[] {10,0,1,1}, 12345, "host1", 1);
-			Instance i2 = getInstance(new byte[] {10,0,1,1}, 12346, "host1", 1);
-			Instance i3 = getInstance(new byte[] {10,0,1,2}, 12345, "host2", 1);
-			Instance i4 = getInstance(new byte[] {10,0,1,2}, 12346, "host2", 1);
-			Instance i5 = getInstance(new byte[] {10,0,1,3}, 12345, "host3", 1);
-			Instance i6 = getInstance(new byte[] {10,0,1,3}, 12346, "host4", 1);
-			scheduler.newInstanceAvailable(i1);
-			scheduler.newInstanceAvailable(i2);
-			scheduler.newInstanceAvailable(i3);
-			scheduler.newInstanceAvailable(i4);
-			scheduler.newInstanceAvailable(i5);
-			scheduler.newInstanceAvailable(i6);
-			
-			eg.scheduleForExecution(scheduler);
-			
-			ExecutionVertex[] tasks = eg.getVerticesTopologically().iterator().next().getTaskVertices();
-			assertEquals(6, tasks.length);
-			
-			Instance taskInstance1 = tasks[0].getCurrentAssignedResource().getInstance();
-			Instance taskInstance2 = tasks[1].getCurrentAssignedResource().getInstance();
-			Instance taskInstance3 = tasks[2].getCurrentAssignedResource().getInstance();
-			Instance taskInstance4 = tasks[3].getCurrentAssignedResource().getInstance();
-			Instance taskInstance5 = tasks[4].getCurrentAssignedResource().getInstance();
-			Instance taskInstance6 = tasks[5].getCurrentAssignedResource().getInstance();
-			
-			assertTrue (taskInstance1 == i1 || taskInstance1 == i2);
-			assertTrue (taskInstance2 == i1 || taskInstance2 == i2);
-			assertTrue (taskInstance3 == i3 || taskInstance3 == i4);
-			assertTrue (taskInstance4 == i3 || taskInstance4 == i4);
-			assertTrue (taskInstance5 == i5 || taskInstance5 == i6);
-			assertTrue (taskInstance6 == i5 || taskInstance6 == i6);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		JobVertex vertex = new JobVertex("test vertex");
+		vertex.setParallelism(6);
+		vertex.setInvokableClass(DummyInvokable.class);
+		vertex.setInputSplitSource(new TestInputSplitSource(splits));
+		
+		JobGraph jobGraph = new JobGraph("test job", JobType.BATCHING, vertex);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobGraph.getJobID(),
+				jobGraph.getName(), jobGraph.getType(), jobGraph.getJobConfiguration(), TIMEOUT);
+		
+		eg.attachJobGraph(jobGraph.getVerticesSortedTopologicallyFromSources());
+		eg.setQueuedSchedulingAllowed(false);
+		
+		// create a scheduler with 6 instances where always two are on the same host
+		Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
+		Instance i1 = getInstance(new byte[] {10,0,1,1}, 12345, "host1", 1);
+		Instance i2 = getInstance(new byte[] {10,0,1,1}, 12346, "host1", 1);
+		Instance i3 = getInstance(new byte[] {10,0,1,2}, 12345, "host2", 1);
+		Instance i4 = getInstance(new byte[] {10,0,1,2}, 12346, "host2", 1);
+		Instance i5 = getInstance(new byte[] {10,0,1,3}, 12345, "host3", 1);
+		Instance i6 = getInstance(new byte[] {10,0,1,3}, 12346, "host4", 1);
+		scheduler.newInstanceAvailable(i1);
+		scheduler.newInstanceAvailable(i2);
+		scheduler.newInstanceAvailable(i3);
+		scheduler.newInstanceAvailable(i4);
+		scheduler.newInstanceAvailable(i5);
+		scheduler.newInstanceAvailable(i6);
+		
+		eg.scheduleForExecution(scheduler);
+		
+		ExecutionVertex[] tasks = eg.getVerticesTopologically().iterator().next().getTaskVertices();
+		assertEquals(6, tasks.length);
+		
+		Instance taskInstance1 = tasks[0].getCurrentAssignedResource().getInstance();
+		Instance taskInstance2 = tasks[1].getCurrentAssignedResource().getInstance();
+		Instance taskInstance3 = tasks[2].getCurrentAssignedResource().getInstance();
+		Instance taskInstance4 = tasks[3].getCurrentAssignedResource().getInstance();
+		Instance taskInstance5 = tasks[4].getCurrentAssignedResource().getInstance();
+		Instance taskInstance6 = tasks[5].getCurrentAssignedResource().getInstance();
+		
+		assertTrue (taskInstance1 == i1 || taskInstance1 == i2);
+		assertTrue (taskInstance2 == i1 || taskInstance2 == i2);
+		assertTrue (taskInstance3 == i3 || taskInstance3 == i4);
+		assertTrue (taskInstance4 == i3 || taskInstance4 == i4);
+		assertTrue (taskInstance5 == i5 || taskInstance5 == i6);
+		assertTrue (taskInstance6 == i5 || taskInstance6 == i6);
 	}
 	
 	// --------------------------------------------------------------------------------------------

@@ -30,6 +30,7 @@ import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +49,7 @@ import static org.mockito.Mockito.when;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(ExecutionGraph.class)
-public class ExecutionGraphSignalsTest {
+public class ExecutionGraphSignalsTest extends TestLogger {
 	private ExecutionJobVertex[] mockEJV = new ExecutionJobVertex[5];
 	private int[] dop = new int[] { 5, 7, 2, 11, 4 };
 	private ExecutionVertex[][] mockEV = new ExecutionVertex[mockEJV.length][];

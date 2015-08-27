@@ -19,7 +19,6 @@
 package org.apache.flink.runtime.executiongraph;
 
 import static org.apache.flink.runtime.executiongraph.ExecutionGraphTestUtils.*;
-
 import static org.junit.Assert.*;
 
 import org.apache.flink.runtime.akka.AkkaUtils;
@@ -29,306 +28,263 @@ import org.apache.flink.runtime.instance.SimpleSlot;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.messages.TaskMessages.TaskOperationResult;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
-
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
-public class ExecutionVertexDeploymentTest {
+public class ExecutionVertexDeploymentTest extends TestLogger {
 
 	@Test
-	public void testDeployCall() {
+	public void testDeployCall() throws Exception {
+		final JobVertexID jid = new JobVertexID();
+
+		final ExecutionJobVertex ejv = getExecutionVertex(jid);
+
+		// mock taskmanager to simply accept the call
+		Instance instance = getInstance(
+				new SimpleActorGateway(TestingUtils.directExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
+
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		vertex.deployToSlot(slot);
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
+
+		// no repeated scheduling
 		try {
-			final JobVertexID jid = new JobVertexID();
-
-			final ExecutionJobVertex ejv = getExecutionVertex(jid);
-
-			// mock taskmanager to simply accept the call
-			Instance instance = getInstance(
-					new SimpleActorGateway(TestingUtils.directExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
-
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
-
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
 			vertex.deployToSlot(slot);
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
-
-			// no repeated scheduling
-			try {
-				vertex.deployToSlot(slot);
-				fail("Scheduled from wrong state");
-			}
-			catch (IllegalStateException e) {
-				// as expected
-			}
-
-			assertNull(vertex.getFailureCause());
-
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+			fail("Scheduled from wrong state");
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (IllegalStateException e) {
+			// as expected
 		}
+
+		assertNull(vertex.getFailureCause());
+
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
 	}
 
 	@Test
-	public void testDeployWithSynchronousAnswer() {
+	public void testDeployWithSynchronousAnswer() throws Exception {
+		final JobVertexID jid = new JobVertexID();
+
+		final ExecutionJobVertex ejv = getExecutionVertex(jid, TestingUtils.directExecutionContext());
+
+		final Instance instance = getInstance(
+				new SimpleActorGateway(TestingUtils.directExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
+
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+
+		vertex.deployToSlot(slot);
+
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
+
+		// no repeated scheduling
 		try {
-			final JobVertexID jid = new JobVertexID();
-
-			final ExecutionJobVertex ejv = getExecutionVertex(jid, TestingUtils.directExecutionContext());
-
-			final Instance instance = getInstance(
-					new SimpleActorGateway(TestingUtils.directExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
-
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
-
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
-
 			vertex.deployToSlot(slot);
-
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
-
-			// no repeated scheduling
-			try {
-				vertex.deployToSlot(slot);
-				fail("Scheduled from wrong state");
-			}
-			catch (IllegalStateException e) {
-				// as expected
-			}
-
-			assertNull(vertex.getFailureCause());
-
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.RUNNING) == 0);
+			fail("Scheduled from wrong state");
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (IllegalStateException e) {
+			// as expected
 		}
+
+		assertNull(vertex.getFailureCause());
+
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.RUNNING) == 0);
 	}
 
 	@Test
-	public void testDeployWithAsynchronousAnswer() {
+	public void testDeployWithAsynchronousAnswer() throws Exception {
+		final JobVertexID jid = new JobVertexID();
+		final ExecutionJobVertex ejv = getExecutionVertex(jid);
+
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
+
+		final Instance instance = getInstance(
+				new SimpleActorGateway(TestingUtils.defaultExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+
+		vertex.deployToSlot(slot);
+
+		// no repeated scheduling
 		try {
-			final JobVertexID jid = new JobVertexID();
-			final ExecutionJobVertex ejv = getExecutionVertex(jid);
-
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
-
-			final Instance instance = getInstance(
-					new SimpleActorGateway(TestingUtils.defaultExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
-
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
-
 			vertex.deployToSlot(slot);
-
-			// no repeated scheduling
-			try {
-				vertex.deployToSlot(slot);
-				fail("Scheduled from wrong state");
-			}
-			catch (IllegalStateException e) {
-				// as expected
-			}
-
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
-
-			// no repeated scheduling
-			try {
-				vertex.deployToSlot(slot);
-				fail("Scheduled from wrong state");
-			}
-			catch (IllegalStateException e) {
-				// as expected
-			}
-
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.RUNNING) == 0);
+			fail("Scheduled from wrong state");
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (IllegalStateException e) {
+			// as expected
 		}
+
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
+
+		// no repeated scheduling
+		try {
+			vertex.deployToSlot(slot);
+			fail("Scheduled from wrong state");
+		}
+		catch (IllegalStateException e) {
+			// as expected
+		}
+
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.RUNNING) == 0);
 	}
 
 	@Test
-	public void testDeployFailedSynchronous() {
-		try {
-			final JobVertexID jid = new JobVertexID();
-			final ExecutionJobVertex ejv = getExecutionVertex(jid, TestingUtils.directExecutionContext());
+	public void testDeployFailedSynchronous() throws Exception {
+		final JobVertexID jid = new JobVertexID();
+		final ExecutionJobVertex ejv = getExecutionVertex(jid, TestingUtils.directExecutionContext());
 
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			final Instance instance = getInstance(
-					new SimpleFailingActorGateway(TestingUtils.directExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		final Instance instance = getInstance(
+				new SimpleFailingActorGateway(TestingUtils.directExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
 
-			vertex.deployToSlot(slot);
+		vertex.deployToSlot(slot);
 
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
-			assertNotNull(vertex.getFailureCause());
-			assertTrue(vertex.getFailureCause().getMessage().contains(ERROR_MESSAGE));
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
+		assertNotNull(vertex.getFailureCause());
+		assertTrue(vertex.getFailureCause().getMessage().contains(ERROR_MESSAGE));
 
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
 	}
 
 	@Test
-	public void testDeployFailedAsynchronously() {
-		try {
-			final JobVertexID jid = new JobVertexID();
-			final ExecutionJobVertex ejv = getExecutionVertex(jid);
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+	public void testDeployFailedAsynchronously() throws Exception {
+		final JobVertexID jid = new JobVertexID();
+		final ExecutionJobVertex ejv = getExecutionVertex(jid);
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			final Instance instance = getInstance(
-					new SimpleFailingActorGateway(TestingUtils.directExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		final Instance instance = getInstance(
+				new SimpleFailingActorGateway(TestingUtils.directExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
 
-			vertex.deployToSlot(slot);
+		vertex.deployToSlot(slot);
 
-			// wait until the state transition must be done
-			for (int i = 0; i < 100; i++) {
-				if (vertex.getExecutionState() == ExecutionState.FAILED && vertex.getFailureCause() != null) {
-					break;
-				} else {
-					Thread.sleep(10);
-				}
+		// wait until the state transition must be done
+		for (int i = 0; i < 100; i++) {
+			if (vertex.getExecutionState() == ExecutionState.FAILED && vertex.getFailureCause() != null) {
+				break;
+			} else {
+				Thread.sleep(10);
 			}
-
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
-			assertNotNull(vertex.getFailureCause());
-			assertTrue(vertex.getFailureCause().getMessage().contains(ERROR_MESSAGE));
-
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
+		assertNotNull(vertex.getFailureCause());
+		assertTrue(vertex.getFailureCause().getMessage().contains(ERROR_MESSAGE));
+
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
 	}
 
 	@Test
-	public void testFailExternallyDuringDeploy() {
-		try {
-			final JobVertexID jid = new JobVertexID();
+	public void testFailExternallyDuringDeploy() throws Exception {
+		final JobVertexID jid = new JobVertexID();
 
-			final TestingUtils.QueuedActionExecutionContext ec = TestingUtils.queuedActionExecutionContext();
-			final TestingUtils.ActionQueue queue = ec.actionQueue();
+		final TestingUtils.QueuedActionExecutionContext ec = TestingUtils.queuedActionExecutionContext();
+		final TestingUtils.ActionQueue queue = ec.actionQueue();
 
-			final ExecutionJobVertex ejv = getExecutionVertex(jid, ec);
+		final ExecutionJobVertex ejv = getExecutionVertex(jid, ec);
 
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			final Instance instance = getInstance(new SimpleActorGateway(TestingUtils.directExecutionContext()));
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		final Instance instance = getInstance(new SimpleActorGateway(TestingUtils.directExecutionContext()));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
-			vertex.deployToSlot(slot);
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		vertex.deployToSlot(slot);
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
 
-			Exception testError = new Exception("test error");
-			vertex.fail(testError);
+		Exception testError = new Exception("test error");
+		vertex.fail(testError);
 
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
-			assertEquals(testError, vertex.getFailureCause());
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
+		assertEquals(testError, vertex.getFailureCause());
 
-			queue.triggerNextAction();
-			queue.triggerNextAction();
+		queue.triggerNextAction();
+		queue.triggerNextAction();
 
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
 	}
 
 	@Test
-	public void testFailCallOvertakesDeploymentAnswer() {
+	public void testFailCallOvertakesDeploymentAnswer() throws Exception {
+		final TestingUtils.QueuedActionExecutionContext context = TestingUtils.queuedActionExecutionContext();
+		final TestingUtils.ActionQueue queue = context.actionQueue();
 
-		try {
-			final TestingUtils.QueuedActionExecutionContext context = TestingUtils.queuedActionExecutionContext();
-			final TestingUtils.ActionQueue queue = context.actionQueue();
+		final JobVertexID jid = new JobVertexID();
 
-			final JobVertexID jid = new JobVertexID();
+		final ExecutionJobVertex ejv = getExecutionVertex(jid, context);
+		final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
+				AkkaUtils.getDefaultTimeout());
 
-			final ExecutionJobVertex ejv = getExecutionVertex(jid, context);
-			final ExecutionVertex vertex = new ExecutionVertex(ejv, 0, new IntermediateResult[0],
-					AkkaUtils.getDefaultTimeout());
+		final ExecutionAttemptID eid = vertex.getCurrentExecutionAttempt().getAttemptId();
 
-			final ExecutionAttemptID eid = vertex.getCurrentExecutionAttempt().getAttemptId();
+		final Instance instance = getInstance(
+				new ExecutionVertexCancelTest.CancelSequenceActorGateway(
+						context,
+						new TaskOperationResult(eid, false),
+						new TaskOperationResult(eid, true)));
 
-			final Instance instance = getInstance(
-					new ExecutionVertexCancelTest.CancelSequenceActorGateway(
-							context,
-							new TaskOperationResult(eid, false),
-							new TaskOperationResult(eid, true)));
+		final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
 
-			final SimpleSlot slot = instance.allocateSimpleSlot(ejv.getJobId());
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		vertex.deployToSlot(slot);
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
 
-			vertex.deployToSlot(slot);
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
+		Exception testError = new Exception("test error");
+		vertex.fail(testError);
 
-			Exception testError = new Exception("test error");
-			vertex.fail(testError);
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
 
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
+		// cancel call overtakes deploy call
+		Runnable deploy = queue.popNextAction();
+		Runnable cancel1 = queue.popNextAction();
 
-			// cancel call overtakes deploy call
-			Runnable deploy = queue.popNextAction();
-			Runnable cancel1 = queue.popNextAction();
+		cancel1.run();
+		// execute onComplete callback of cancel
+		queue.triggerNextAction();
 
-			cancel1.run();
-			// execute onComplete callback of cancel
-			queue.triggerNextAction();
+		deploy.run();
 
-			deploy.run();
+		// execute onComplete callback of deploy
+		queue.triggerNextAction();
 
-			// execute onComplete callback of deploy
-			queue.triggerNextAction();
+		assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
 
-			assertEquals(ExecutionState.FAILED, vertex.getExecutionState());
+		assertEquals(testError, vertex.getFailureCause());
 
-			assertEquals(testError, vertex.getFailureCause());
+		assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
+		assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
 
-			assertTrue(vertex.getStateTimestamp(ExecutionState.CREATED) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.DEPLOYING) > 0);
-			assertTrue(vertex.getStateTimestamp(ExecutionState.FAILED) > 0);
-
-			assertTrue(queue.isEmpty());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertTrue(queue.isEmpty());
 	}
 }

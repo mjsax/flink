@@ -41,362 +41,321 @@ import org.apache.flink.runtime.jobmanager.scheduler.Scheduler;
 import org.apache.flink.runtime.jobmanager.scheduler.SlotSharingGroup;
 import org.apache.flink.runtime.operators.testutils.DummyInvokable;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import scala.concurrent.duration.FiniteDuration;
 
-public class VertexLocationConstraintTest {
+public class VertexLocationConstraintTest extends TestLogger {
 
 	private static final FiniteDuration timeout = new FiniteDuration(100, TimeUnit.SECONDS);
 	
 	@Test
-	public void testScheduleWithConstraint1() {
-		try {
-			final byte[] address1 = { 10, 0, 1, 4 };
-			final byte[] address2 = { 10, 0, 1, 5 };
-			final byte[] address3 = { 10, 0, 1, 6 };
-			
-			final String hostname1 = "host1";
-			final String hostname2 = "host2";
-			final String hostname3 = "host3";
-			
-			// prepare the scheduler
-			Instance instance1 = getInstance(address1, 6789, hostname1);
-			Instance instance2 = getInstance(address2, 6789, hostname2);
-			Instance instance3 = getInstance(address3, 6789, hostname3);
-			
-			Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
-			scheduler.newInstanceAvailable(instance1);
-			scheduler.newInstanceAvailable(instance2);
-			scheduler.newInstanceAvailable(instance3);
-			
-			// prepare the execution graph
-			JobVertex jobVertex = new JobVertex("test vertex", new JobVertexID());
-			jobVertex.setInvokableClass(DummyInvokable.class);
-			jobVertex.setParallelism(2);
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(),jg.getJobID(),
-					jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
-			eg.attachJobGraph(Collections.singletonList(jobVertex));
-			
-			ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex.getID());
-			ExecutionVertex[] vertices = ejv.getTaskVertices();
-			
-			vertices[0].setLocationConstraintHosts(Arrays.asList(instance1, instance2));
-			vertices[1].setLocationConstraintHosts(Collections.singletonList(instance3));
-			
-			vertices[0].setScheduleLocalOnly(true);
-			vertices[1].setScheduleLocalOnly(true);
-			
-			ejv.scheduleAll(scheduler, false);
-			
-			SimpleSlot slot1 = vertices[0].getCurrentAssignedResource();
-			SimpleSlot slot2 = vertices[1].getCurrentAssignedResource();
-			
-			assertNotNull(slot1);
-			assertNotNull(slot2);
-			
-			Instance target1 = slot1.getInstance();
-			Instance target2 = slot2.getInstance();
-			
-			assertNotNull(target1);
-			assertNotNull(target2);
-			
-			assertTrue(target1 == instance1 || target1 == instance2);
-			assertTrue(target2 == instance3);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+	public void testScheduleWithConstraint1() throws Exception {
+		final byte[] address1 = { 10, 0, 1, 4 };
+		final byte[] address2 = { 10, 0, 1, 5 };
+		final byte[] address3 = { 10, 0, 1, 6 };
+		
+		final String hostname1 = "host1";
+		final String hostname2 = "host2";
+		final String hostname3 = "host3";
+		
+		// prepare the scheduler
+		Instance instance1 = getInstance(address1, 6789, hostname1);
+		Instance instance2 = getInstance(address2, 6789, hostname2);
+		Instance instance3 = getInstance(address3, 6789, hostname3);
+		
+		Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
+		scheduler.newInstanceAvailable(instance1);
+		scheduler.newInstanceAvailable(instance2);
+		scheduler.newInstanceAvailable(instance3);
+		
+		// prepare the execution graph
+		JobVertex jobVertex = new JobVertex("test vertex", new JobVertexID());
+		jobVertex.setInvokableClass(DummyInvokable.class);
+		jobVertex.setParallelism(2);
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(),jg.getJobID(),
+				jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
+		eg.attachJobGraph(Collections.singletonList(jobVertex));
+		
+		ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex.getID());
+		ExecutionVertex[] vertices = ejv.getTaskVertices();
+		
+		vertices[0].setLocationConstraintHosts(Arrays.asList(instance1, instance2));
+		vertices[1].setLocationConstraintHosts(Collections.singletonList(instance3));
+		
+		vertices[0].setScheduleLocalOnly(true);
+		vertices[1].setScheduleLocalOnly(true);
+		
+		ejv.scheduleAll(scheduler, false);
+		
+		SimpleSlot slot1 = vertices[0].getCurrentAssignedResource();
+		SimpleSlot slot2 = vertices[1].getCurrentAssignedResource();
+		
+		assertNotNull(slot1);
+		assertNotNull(slot2);
+		
+		Instance target1 = slot1.getInstance();
+		Instance target2 = slot2.getInstance();
+		
+		assertNotNull(target1);
+		assertNotNull(target2);
+		
+		assertTrue(target1 == instance1 || target1 == instance2);
+		assertTrue(target2 == instance3);
 	}
 	
 	@Test
-	public void testScheduleWithConstraint2() {
+	public void testScheduleWithConstraint2() throws Exception {
 		
 		// same test as above, which swapped host names to guard against "accidentally worked" because of
 		// the order in which requests are handles by internal data structures
 		
-		try {
-			final byte[] address1 = { 10, 0, 1, 4 };
-			final byte[] address2 = { 10, 0, 1, 5 };
-			final byte[] address3 = { 10, 0, 1, 6 };
-			
-			final String hostname1 = "host1";
-			final String hostname2 = "host2";
-			final String hostname3 = "host3";
-			
-			// prepare the scheduler
-			Instance instance1 = getInstance(address1, 6789, hostname1);
-			Instance instance2 = getInstance(address2, 6789, hostname2);
-			Instance instance3 = getInstance(address3, 6789, hostname3);
-			
-			Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
-			scheduler.newInstanceAvailable(instance1);
-			scheduler.newInstanceAvailable(instance2);
-			scheduler.newInstanceAvailable(instance3);
-			
-			// prepare the execution graph
-			JobVertex jobVertex = new JobVertex("test vertex", new JobVertexID());
-			jobVertex.setInvokableClass(DummyInvokable.class);
-			jobVertex.setParallelism(2);
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
-					jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
-			eg.attachJobGraph(Collections.singletonList(jobVertex));
-			
-			ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex.getID());
-			ExecutionVertex[] vertices = ejv.getTaskVertices();
-			
-			vertices[0].setLocationConstraintHosts(Collections.singletonList(instance3));
-			vertices[1].setLocationConstraintHosts(Arrays.asList(instance1, instance2));
-			
-			vertices[0].setScheduleLocalOnly(true);
-			vertices[1].setScheduleLocalOnly(true);
-			
-			ejv.scheduleAll(scheduler, false);
-			
-			SimpleSlot slot1 = vertices[0].getCurrentAssignedResource();
-			SimpleSlot slot2 = vertices[1].getCurrentAssignedResource();
-			
-			assertNotNull(slot1);
-			assertNotNull(slot2);
-			
-			Instance target1 = slot1.getInstance();
-			Instance target2 = slot2.getInstance();
-			
-			assertNotNull(target1);
-			assertNotNull(target2);
-			
-			assertTrue(target1 == instance3);
-			assertTrue(target2 == instance1 || target2 == instance2);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		final byte[] address1 = { 10, 0, 1, 4 };
+		final byte[] address2 = { 10, 0, 1, 5 };
+		final byte[] address3 = { 10, 0, 1, 6 };
+		
+		final String hostname1 = "host1";
+		final String hostname2 = "host2";
+		final String hostname3 = "host3";
+		
+		// prepare the scheduler
+		Instance instance1 = getInstance(address1, 6789, hostname1);
+		Instance instance2 = getInstance(address2, 6789, hostname2);
+		Instance instance3 = getInstance(address3, 6789, hostname3);
+		
+		Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
+		scheduler.newInstanceAvailable(instance1);
+		scheduler.newInstanceAvailable(instance2);
+		scheduler.newInstanceAvailable(instance3);
+		
+		// prepare the execution graph
+		JobVertex jobVertex = new JobVertex("test vertex", new JobVertexID());
+		jobVertex.setInvokableClass(DummyInvokable.class);
+		jobVertex.setParallelism(2);
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
+				jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
+		eg.attachJobGraph(Collections.singletonList(jobVertex));
+		
+		ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex.getID());
+		ExecutionVertex[] vertices = ejv.getTaskVertices();
+		
+		vertices[0].setLocationConstraintHosts(Collections.singletonList(instance3));
+		vertices[1].setLocationConstraintHosts(Arrays.asList(instance1, instance2));
+		
+		vertices[0].setScheduleLocalOnly(true);
+		vertices[1].setScheduleLocalOnly(true);
+		
+		ejv.scheduleAll(scheduler, false);
+		
+		SimpleSlot slot1 = vertices[0].getCurrentAssignedResource();
+		SimpleSlot slot2 = vertices[1].getCurrentAssignedResource();
+		
+		assertNotNull(slot1);
+		assertNotNull(slot2);
+		
+		Instance target1 = slot1.getInstance();
+		Instance target2 = slot2.getInstance();
+		
+		assertNotNull(target1);
+		assertNotNull(target2);
+		
+		assertTrue(target1 == instance3);
+		assertTrue(target2 == instance1 || target2 == instance2);
 	}
 	
 	@Test
-	public void testScheduleWithConstraintAndSlotSharing() {
-		try {
-			final byte[] address1 = { 10, 0, 1, 4 };
-			final byte[] address2 = { 10, 0, 1, 5 };
-			final byte[] address3 = { 10, 0, 1, 6 };
-			
-			final String hostname1 = "host1";
-			final String hostname2 = "host2";
-			final String hostname3 = "host3";
-			
-			// prepare the scheduler
-			Instance instance1 = getInstance(address1, 6789, hostname1);
-			Instance instance2 = getInstance(address2, 6789, hostname2);
-			Instance instance3 = getInstance(address3, 6789, hostname3);
-			
-			Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
-			scheduler.newInstanceAvailable(instance1);
-			scheduler.newInstanceAvailable(instance2);
-			scheduler.newInstanceAvailable(instance3);
-			
-			// prepare the execution graph
-			JobVertex jobVertex1 = new JobVertex("v1", new JobVertexID());
-			JobVertex jobVertex2 = new JobVertex("v2", new JobVertexID());
-			jobVertex1.setInvokableClass(DummyInvokable.class);
-			jobVertex2.setInvokableClass(DummyInvokable.class);
-			jobVertex1.setParallelism(2);
-			jobVertex2.setParallelism(3);
-			
-			SlotSharingGroup sharingGroup = new SlotSharingGroup();
-			jobVertex1.setSlotSharingGroup(sharingGroup);
-			jobVertex2.setSlotSharingGroup(sharingGroup);
-			
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex1, jobVertex2);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
-					jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
-			eg.attachJobGraph(Arrays.asList(jobVertex1, jobVertex2));
-			
-			ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex1.getID());
-			ExecutionVertex[] vertices = ejv.getTaskVertices();
-			
-			vertices[0].setLocationConstraintHosts(Arrays.asList(instance1, instance2));
-			vertices[1].setLocationConstraintHosts(Collections.singletonList(instance3));
-			
-			vertices[0].setScheduleLocalOnly(true);
-			vertices[1].setScheduleLocalOnly(true);
-			
-			ejv.scheduleAll(scheduler, false);
-			
-			SimpleSlot slot1 = vertices[0].getCurrentAssignedResource();
-			SimpleSlot slot2 = vertices[1].getCurrentAssignedResource();
-			
-			assertNotNull(slot1);
-			assertNotNull(slot2);
-			
-			Instance target1 = slot1.getInstance();
-			Instance target2 = slot2.getInstance();
-			
-			assertNotNull(target1);
-			assertNotNull(target2);
-			
-			assertTrue(target1 == instance1 || target1 == instance2);
-			assertTrue(target2 == instance3);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+	public void testScheduleWithConstraintAndSlotSharing() throws Exception {
+		final byte[] address1 = { 10, 0, 1, 4 };
+		final byte[] address2 = { 10, 0, 1, 5 };
+		final byte[] address3 = { 10, 0, 1, 6 };
+		
+		final String hostname1 = "host1";
+		final String hostname2 = "host2";
+		final String hostname3 = "host3";
+		
+		// prepare the scheduler
+		Instance instance1 = getInstance(address1, 6789, hostname1);
+		Instance instance2 = getInstance(address2, 6789, hostname2);
+		Instance instance3 = getInstance(address3, 6789, hostname3);
+		
+		Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
+		scheduler.newInstanceAvailable(instance1);
+		scheduler.newInstanceAvailable(instance2);
+		scheduler.newInstanceAvailable(instance3);
+		
+		// prepare the execution graph
+		JobVertex jobVertex1 = new JobVertex("v1", new JobVertexID());
+		JobVertex jobVertex2 = new JobVertex("v2", new JobVertexID());
+		jobVertex1.setInvokableClass(DummyInvokable.class);
+		jobVertex2.setInvokableClass(DummyInvokable.class);
+		jobVertex1.setParallelism(2);
+		jobVertex2.setParallelism(3);
+		
+		SlotSharingGroup sharingGroup = new SlotSharingGroup();
+		jobVertex1.setSlotSharingGroup(sharingGroup);
+		jobVertex2.setSlotSharingGroup(sharingGroup);
+		
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex1, jobVertex2);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
+				jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
+		eg.attachJobGraph(Arrays.asList(jobVertex1, jobVertex2));
+		
+		ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex1.getID());
+		ExecutionVertex[] vertices = ejv.getTaskVertices();
+		
+		vertices[0].setLocationConstraintHosts(Arrays.asList(instance1, instance2));
+		vertices[1].setLocationConstraintHosts(Collections.singletonList(instance3));
+		
+		vertices[0].setScheduleLocalOnly(true);
+		vertices[1].setScheduleLocalOnly(true);
+		
+		ejv.scheduleAll(scheduler, false);
+		
+		SimpleSlot slot1 = vertices[0].getCurrentAssignedResource();
+		SimpleSlot slot2 = vertices[1].getCurrentAssignedResource();
+		
+		assertNotNull(slot1);
+		assertNotNull(slot2);
+		
+		Instance target1 = slot1.getInstance();
+		Instance target2 = slot2.getInstance();
+		
+		assertNotNull(target1);
+		assertNotNull(target2);
+		
+		assertTrue(target1 == instance1 || target1 == instance2);
+		assertTrue(target2 == instance3);
 	}
 	
 	@Test
-	public void testScheduleWithUnfulfillableConstraint() {
+	public void testScheduleWithUnfulfillableConstraint() throws Exception {
 		
 		// same test as above, which swapped host names to guard against "accidentally worked" because of
 		// the order in which requests are handles by internal data structures
 		
+		final byte[] address1 = { 10, 0, 1, 4 };
+		final byte[] address2 = { 10, 0, 1, 5 };
+		
+		final String hostname1 = "host1";
+		final String hostname2 = "host2";
+		
+		// prepare the scheduler
+		Instance instance1 = getInstance(address1, 6789, hostname1);
+		Instance instance2 = getInstance(address2, 6789, hostname2);
+		
+		Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
+		scheduler.newInstanceAvailable(instance1);
+		
+		// prepare the execution graph
+		JobVertex jobVertex = new JobVertex("test vertex", new JobVertexID());
+		jobVertex.setInvokableClass(DummyInvokable.class);
+		jobVertex.setParallelism(1);
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
+				jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
+		eg.attachJobGraph(Collections.singletonList(jobVertex));
+		
+		ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex.getID());
+		ExecutionVertex[] vertices = ejv.getTaskVertices();
+		
+		vertices[0].setLocationConstraintHosts(Collections.singletonList(instance2));
+		vertices[0].setScheduleLocalOnly(true);
+		
 		try {
-			final byte[] address1 = { 10, 0, 1, 4 };
-			final byte[] address2 = { 10, 0, 1, 5 };
-			
-			final String hostname1 = "host1";
-			final String hostname2 = "host2";
-			
-			// prepare the scheduler
-			Instance instance1 = getInstance(address1, 6789, hostname1);
-			Instance instance2 = getInstance(address2, 6789, hostname2);
-			
-			Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
-			scheduler.newInstanceAvailable(instance1);
-			
-			// prepare the execution graph
-			JobVertex jobVertex = new JobVertex("test vertex", new JobVertexID());
-			jobVertex.setInvokableClass(DummyInvokable.class);
-			jobVertex.setParallelism(1);
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
-					jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
-			eg.attachJobGraph(Collections.singletonList(jobVertex));
-			
-			ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex.getID());
-			ExecutionVertex[] vertices = ejv.getTaskVertices();
-			
-			vertices[0].setLocationConstraintHosts(Collections.singletonList(instance2));
-			vertices[0].setScheduleLocalOnly(true);
-			
-			try {
-				ejv.scheduleAll(scheduler, false);
-				fail("This should fail with a NoResourceAvailableException");
-			}
-			catch (NoResourceAvailableException e) {
-				// bam! we are good...
-				assertTrue(e.getMessage().contains(hostname2));
-			}
-			catch (Exception e) {
-				fail("Wrong exception type");
-			}
+			ejv.scheduleAll(scheduler, false);
+			fail("This should fail with a NoResourceAvailableException");
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (NoResourceAvailableException e) {
+			// bam! we are good...
+			assertTrue(e.getMessage().contains(hostname2));
 		}
 	}
 	
 	@Test
-	public void testScheduleWithUnfulfillableConstraintInSharingGroup() {
+	public void testScheduleWithUnfulfillableConstraintInSharingGroup() throws Exception {
 		
 		// same test as above, which swapped host names to guard against "accidentally worked" because of
 		// the order in which requests are handles by internal data structures
 		
+		final byte[] address1 = { 10, 0, 1, 4 };
+		final byte[] address2 = { 10, 0, 1, 5 };
+		
+		final String hostname1 = "host1";
+		final String hostname2 = "host2";
+		
+		// prepare the scheduler
+		Instance instance1 = getInstance(address1, 6789, hostname1);
+		Instance instance2 = getInstance(address2, 6789, hostname2);
+		
+		Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
+		scheduler.newInstanceAvailable(instance1);
+		
+		// prepare the execution graph
+		JobVertex jobVertex1 = new JobVertex("v1", new JobVertexID());
+		JobVertex jobVertex2 = new JobVertex("v2", new JobVertexID());
+		
+		jobVertex1.setInvokableClass(DummyInvokable.class);
+		jobVertex2.setInvokableClass(DummyInvokable.class);
+		
+		jobVertex1.setParallelism(1);
+		jobVertex2.setParallelism(1);
+		
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex1, jobVertex2);
+		
+		SlotSharingGroup sharingGroup = new SlotSharingGroup();
+		jobVertex1.setSlotSharingGroup(sharingGroup);
+		jobVertex2.setSlotSharingGroup(sharingGroup);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
+				jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
+		eg.attachJobGraph(Arrays.asList(jobVertex1, jobVertex2));
+		
+		ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex1.getID());
+		ExecutionVertex[] vertices = ejv.getTaskVertices();
+		
+		vertices[0].setLocationConstraintHosts(Collections.singletonList(instance2));
+		vertices[0].setScheduleLocalOnly(true);
+		
 		try {
-			final byte[] address1 = { 10, 0, 1, 4 };
-			final byte[] address2 = { 10, 0, 1, 5 };
-			
-			final String hostname1 = "host1";
-			final String hostname2 = "host2";
-			
-			// prepare the scheduler
-			Instance instance1 = getInstance(address1, 6789, hostname1);
-			Instance instance2 = getInstance(address2, 6789, hostname2);
-			
-			Scheduler scheduler = new Scheduler(TestingUtils.defaultExecutionContext());
-			scheduler.newInstanceAvailable(instance1);
-			
-			// prepare the execution graph
-			JobVertex jobVertex1 = new JobVertex("v1", new JobVertexID());
-			JobVertex jobVertex2 = new JobVertex("v2", new JobVertexID());
-			
-			jobVertex1.setInvokableClass(DummyInvokable.class);
-			jobVertex2.setInvokableClass(DummyInvokable.class);
-			
-			jobVertex1.setParallelism(1);
-			jobVertex2.setParallelism(1);
-			
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex1, jobVertex2);
-			
-			SlotSharingGroup sharingGroup = new SlotSharingGroup();
-			jobVertex1.setSlotSharingGroup(sharingGroup);
-			jobVertex2.setSlotSharingGroup(sharingGroup);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
-					jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
-			eg.attachJobGraph(Arrays.asList(jobVertex1, jobVertex2));
-			
-			ExecutionJobVertex ejv = eg.getAllVertices().get(jobVertex1.getID());
-			ExecutionVertex[] vertices = ejv.getTaskVertices();
-			
-			vertices[0].setLocationConstraintHosts(Collections.singletonList(instance2));
-			vertices[0].setScheduleLocalOnly(true);
-			
-			try {
-				ejv.scheduleAll(scheduler, false);
-				fail("This should fail with a NoResourceAvailableException");
-			}
-			catch (NoResourceAvailableException e) {
-				// bam! we are good...
-				assertTrue(e.getMessage().contains(hostname2));
-			}
-			catch (Exception e) {
-				fail("Wrong exception type");
-			}
+			ejv.scheduleAll(scheduler, false);
+			fail("This should fail with a NoResourceAvailableException");
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (NoResourceAvailableException e) {
+			// bam! we are good...
+			assertTrue(e.getMessage().contains(hostname2));
 		}
 	}
 	
 	@Test
-	public void testArchivingClearsFields() {
-		try {
-			JobVertex vertex = new JobVertex("test vertex", new JobVertexID());
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, vertex);
-			
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
-					jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
-			eg.attachJobGraph(Collections.singletonList(vertex));
-			
-			ExecutionVertex ev = eg.getAllVertices().get(vertex.getID()).getTaskVertices()[0];
-			
-			Instance instance = ExecutionGraphTestUtils.getInstance(DummyActorGateway.INSTANCE);
-			ev.setLocationConstraintHosts(Collections.singletonList(instance));
-			
-			assertNotNull(ev.getPreferredLocations());
-			assertEquals(instance, ev.getPreferredLocations().iterator().next());
-			
-			// transition to a final state
-			eg.fail(new Exception());
-			
-			eg.prepareForArchiving();
-			
-			assertTrue(ev.getPreferredLocations() == null || !ev.getPreferredLocations().iterator().hasNext());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+	public void testArchivingClearsFields() throws Exception {
+		JobVertex vertex = new JobVertex("test vertex", new JobVertexID());
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, vertex);
+		
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jg.getJobID(),
+				jg.getName(), jg.getType(), jg.getJobConfiguration(), timeout);
+		eg.attachJobGraph(Collections.singletonList(vertex));
+		
+		ExecutionVertex ev = eg.getAllVertices().get(vertex.getID()).getTaskVertices()[0];
+		
+		Instance instance = ExecutionGraphTestUtils.getInstance(DummyActorGateway.INSTANCE);
+		ev.setLocationConstraintHosts(Collections.singletonList(instance));
+		
+		assertNotNull(ev.getPreferredLocations());
+		assertEquals(instance, ev.getPreferredLocations().iterator().next());
+		
+		// transition to a final state
+		eg.fail(new Exception());
+		
+		eg.prepareForArchiving();
+		
+		assertTrue(ev.getPreferredLocations() == null || !ev.getPreferredLocations().iterator().hasNext());
 	}
 	
 	// --------------------------------------------------------------------------------------------

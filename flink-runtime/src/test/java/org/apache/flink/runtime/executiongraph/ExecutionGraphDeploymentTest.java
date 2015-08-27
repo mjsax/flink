@@ -21,7 +21,6 @@ package org.apache.flink.runtime.executiongraph;
 import static org.apache.flink.runtime.executiongraph.ExecutionGraphTestUtils.getInstance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,225 +45,186 @@ import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobmanager.scheduler.Scheduler;
 import org.apache.flink.runtime.operators.RegularPactTask;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
-public class ExecutionGraphDeploymentTest {
+public class ExecutionGraphDeploymentTest extends TestLogger {
 
 	@Test
-	public void testBuildDeploymentDescriptor() {
-		try {
-			final JobID jobId = new JobID();
+	public void testBuildDeploymentDescriptor() throws Exception {
+		final JobID jobId = new JobID();
 
-			final JobVertexID jid1 = new JobVertexID();
-			final JobVertexID jid2 = new JobVertexID();
-			final JobVertexID jid3 = new JobVertexID();
-			final JobVertexID jid4 = new JobVertexID();
+		final JobVertexID jid1 = new JobVertexID();
+		final JobVertexID jid2 = new JobVertexID();
+		final JobVertexID jid3 = new JobVertexID();
+		final JobVertexID jid4 = new JobVertexID();
 
-			JobVertex v1 = new JobVertex("v1", jid1);
-			JobVertex v2 = new JobVertex("v2", jid2);
-			JobVertex v3 = new JobVertex("v3", jid3);
-			JobVertex v4 = new JobVertex("v4", jid4);
+		JobVertex v1 = new JobVertex("v1", jid1);
+		JobVertex v2 = new JobVertex("v2", jid2);
+		JobVertex v3 = new JobVertex("v3", jid3);
+		JobVertex v4 = new JobVertex("v4", jid4);
 
-			v1.setParallelism(10);
-			v2.setParallelism(10);
-			v3.setParallelism(10);
-			v4.setParallelism(10);
+		v1.setParallelism(10);
+		v2.setParallelism(10);
+		v3.setParallelism(10);
+		v4.setParallelism(10);
 
-			v1.setInvokableClass(RegularPactTask.class);
-			v2.setInvokableClass(RegularPactTask.class);
-			v3.setInvokableClass(RegularPactTask.class);
-			v4.setInvokableClass(RegularPactTask.class);
+		v1.setInvokableClass(RegularPactTask.class);
+		v2.setInvokableClass(RegularPactTask.class);
+		v3.setInvokableClass(RegularPactTask.class);
+		v4.setInvokableClass(RegularPactTask.class);
 
-			v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL);
-			v3.connectNewDataSetAsInput(v2, DistributionPattern.ALL_TO_ALL);
-			v4.connectNewDataSetAsInput(v2, DistributionPattern.ALL_TO_ALL);
+		v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL);
+		v3.connectNewDataSetAsInput(v2, DistributionPattern.ALL_TO_ALL);
+		v4.connectNewDataSetAsInput(v2, DistributionPattern.ALL_TO_ALL);
 
-			ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, "some job",
-								JobType.BATCHING, new Configuration(), AkkaUtils.getDefaultTimeout());
+		ExecutionGraph eg = new ExecutionGraph(TestingUtils.defaultExecutionContext(), jobId, "some job",
+							JobType.BATCHING, new Configuration(), AkkaUtils.getDefaultTimeout());
 
-			List<JobVertex> ordered = Arrays.asList(v1, v2, v3, v4);
+		List<JobVertex> ordered = Arrays.asList(v1, v2, v3, v4);
 
-			eg.attachJobGraph(ordered);
+		eg.attachJobGraph(ordered);
 
-			ExecutionJobVertex ejv = eg.getAllVertices().get(jid2);
-			ExecutionVertex vertex = ejv.getTaskVertices()[3];
+		ExecutionJobVertex ejv = eg.getAllVertices().get(jid2);
+		ExecutionVertex vertex = ejv.getTaskVertices()[3];
 
-			ExecutionGraphTestUtils.SimpleActorGateway instanceGateway = new ExecutionGraphTestUtils.SimpleActorGateway(TestingUtils.directExecutionContext());
+		ExecutionGraphTestUtils.SimpleActorGateway instanceGateway = new ExecutionGraphTestUtils.SimpleActorGateway(TestingUtils.directExecutionContext());
 
-			final Instance instance = getInstance(instanceGateway);
+		final Instance instance = getInstance(instanceGateway);
 
-			final SimpleSlot slot = instance.allocateSimpleSlot(jobId);
+		final SimpleSlot slot = instance.allocateSimpleSlot(jobId);
 
-			assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
+		assertEquals(ExecutionState.CREATED, vertex.getExecutionState());
 
-			vertex.deployToSlot(slot);
+		vertex.deployToSlot(slot);
 
-			assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
+		assertEquals(ExecutionState.DEPLOYING, vertex.getExecutionState());
 
-			TaskDeploymentDescriptor descr = instanceGateway.lastTDD;
-			assertNotNull(descr);
+		TaskDeploymentDescriptor descr = instanceGateway.lastTDD;
+		assertNotNull(descr);
 
-			assertEquals(jobId, descr.getJobID());
-			assertEquals(jid2, descr.getVertexID());
-			assertEquals(3, descr.getIndexInSubtaskGroup());
-			assertEquals(10, descr.getNumberOfSubtasks());
-			assertEquals(RegularPactTask.class.getName(), descr.getInvokableClassName());
-			assertEquals("v2", descr.getTaskName());
+		assertEquals(jobId, descr.getJobID());
+		assertEquals(jid2, descr.getVertexID());
+		assertEquals(3, descr.getIndexInSubtaskGroup());
+		assertEquals(10, descr.getNumberOfSubtasks());
+		assertEquals(RegularPactTask.class.getName(), descr.getInvokableClassName());
+		assertEquals("v2", descr.getTaskName());
 
-			List<ResultPartitionDeploymentDescriptor> producedPartitions = descr.getProducedPartitions();
-			List<InputGateDeploymentDescriptor> consumedPartitions = descr.getInputGates();
+		List<ResultPartitionDeploymentDescriptor> producedPartitions = descr.getProducedPartitions();
+		List<InputGateDeploymentDescriptor> consumedPartitions = descr.getInputGates();
 
-			assertEquals(2, producedPartitions.size());
-			assertEquals(1, consumedPartitions.size());
+		assertEquals(2, producedPartitions.size());
+		assertEquals(1, consumedPartitions.size());
 
-			assertEquals(10, producedPartitions.get(0).getNumberOfSubpartitions());
-			assertEquals(10, producedPartitions.get(1).getNumberOfSubpartitions());
-			assertEquals(10, consumedPartitions.get(0).getInputChannelDeploymentDescriptors().length);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertEquals(10, producedPartitions.get(0).getNumberOfSubpartitions());
+		assertEquals(10, producedPartitions.get(1).getNumberOfSubpartitions());
+		assertEquals(10, consumedPartitions.get(0).getInputChannelDeploymentDescriptors().length);
 	}
 
 	@Test
-	public void testRegistrationOfExecutionsFinishing() {
-		try {
-			final JobVertexID jid1 = new JobVertexID();
-			final JobVertexID jid2 = new JobVertexID();
+	public void testRegistrationOfExecutionsFinishing() throws Exception {
+		final JobVertexID jid1 = new JobVertexID();
+		final JobVertexID jid2 = new JobVertexID();
 
-			JobVertex v1 = new JobVertex("v1", jid1);
-			JobVertex v2 = new JobVertex("v2", jid2);
+		JobVertex v1 = new JobVertex("v1", jid1);
+		JobVertex v2 = new JobVertex("v2", jid2);
 
-			Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 7650, v2, 2350);
+		Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 7650, v2, 2350);
 
-			for (Execution e : executions.values()) {
-				e.markFinished();
-			}
-
-			assertEquals(0, executions.size());
+		for (Execution e : executions.values()) {
+			e.markFinished();
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+
+		assertEquals(0, executions.size());
 	}
 
 	@Test
-	public void testRegistrationOfExecutionsFailing() {
-		try {
+	public void testRegistrationOfExecutionsFailing() throws Exception {
+		final JobVertexID jid1 = new JobVertexID();
+		final JobVertexID jid2 = new JobVertexID();
 
-			final JobVertexID jid1 = new JobVertexID();
-			final JobVertexID jid2 = new JobVertexID();
+		JobVertex v1 = new JobVertex("v1", jid1);
+		JobVertex v2 = new JobVertex("v2", jid2);
 
-			JobVertex v1 = new JobVertex("v1", jid1);
-			JobVertex v2 = new JobVertex("v2", jid2);
+		Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 7, v2, 6);
 
-			Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 7, v2, 6);
-
-			for (Execution e : executions.values()) {
-				e.markFailed(null);
-			}
-
-			assertEquals(0, executions.size());
+		for (Execution e : executions.values()) {
+			e.markFailed(null);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+
+		assertEquals(0, executions.size());
 	}
 
 	@Test
-	public void testRegistrationOfExecutionsFailedExternally() {
-		try {
+	public void testRegistrationOfExecutionsFailedExternally() throws Exception {
+		final JobVertexID jid1 = new JobVertexID();
+		final JobVertexID jid2 = new JobVertexID();
 
-			final JobVertexID jid1 = new JobVertexID();
-			final JobVertexID jid2 = new JobVertexID();
+		JobVertex v1 = new JobVertex("v1", jid1);
+		JobVertex v2 = new JobVertex("v2", jid2);
 
-			JobVertex v1 = new JobVertex("v1", jid1);
-			JobVertex v2 = new JobVertex("v2", jid2);
+		Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 7, v2, 6);
 
-			Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 7, v2, 6);
-
-			for (Execution e : executions.values()) {
-				e.fail(null);
-			}
-
-			assertEquals(0, executions.size());
+		for (Execution e : executions.values()) {
+			e.fail(null);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+
+		assertEquals(0, executions.size());
 	}
 
 	@Test
-	public void testRegistrationOfExecutionsCanceled() {
-		try {
+	public void testRegistrationOfExecutionsCanceled() throws Exception {
+		final JobVertexID jid1 = new JobVertexID();
+		final JobVertexID jid2 = new JobVertexID();
 
-			final JobVertexID jid1 = new JobVertexID();
-			final JobVertexID jid2 = new JobVertexID();
+		JobVertex v1 = new JobVertex("v1", jid1);
+		JobVertex v2 = new JobVertex("v2", jid2);
 
-			JobVertex v1 = new JobVertex("v1", jid1);
-			JobVertex v2 = new JobVertex("v2", jid2);
+		Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 19, v2, 37);
 
-			Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 19, v2, 37);
-
-			for (Execution e : executions.values()) {
-				e.cancel();
-				e.cancelingComplete();
-			}
-
-			assertEquals(0, executions.size());
+		for (Execution e : executions.values()) {
+			e.cancel();
+			e.cancelingComplete();
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+
+		assertEquals(0, executions.size());
 	}
 
 	@Test
-	public void testRegistrationOfExecutionsFailingFinalize() {
-		try {
+	public void testRegistrationOfExecutionsFailingFinalize() throws Exception {
+		final JobVertexID jid1 = new JobVertexID();
+		final JobVertexID jid2 = new JobVertexID();
 
-			final JobVertexID jid1 = new JobVertexID();
-			final JobVertexID jid2 = new JobVertexID();
+		JobVertex v1 = new FailingFinalizeJobVertex("v1", jid1);
+		JobVertex v2 = new JobVertex("v2", jid2);
 
-			JobVertex v1 = new FailingFinalizeJobVertex("v1", jid1);
-			JobVertex v2 = new JobVertex("v2", jid2);
+		Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 6, v2, 4);
 
-			Map<ExecutionAttemptID, Execution> executions = setupExecution(v1, 6, v2, 4);
-
-			List<Execution> execList = new ArrayList<Execution>();
-			execList.addAll(executions.values());
-			// sort executions by job vertex. Failing job vertex first
-			Collections.sort(execList, new Comparator<Execution>() {
-				@Override
-				public int compare(Execution o1, Execution o2) {
-					return o1.getVertex().getSimpleName().compareTo(o2.getVertex().getSimpleName());
-				}
-			});
-
-			int cnt = 0;
-			for (Execution e : execList) {
-				cnt++;
-				e.markFinished();
-				if (cnt <= 6) {
-					// the last execution of the first job vertex triggers the failing finalize hook
-					assertEquals(ExecutionState.FINISHED, e.getState());
-				}
-				else {
-					// all following executions should be canceled
-					assertEquals(ExecutionState.CANCELED, e.getState());
-				}
+		List<Execution> execList = new ArrayList<Execution>();
+		execList.addAll(executions.values());
+		// sort executions by job vertex. Failing job vertex first
+		Collections.sort(execList, new Comparator<Execution>() {
+			@Override
+			public int compare(Execution o1, Execution o2) {
+				return o1.getVertex().getSimpleName().compareTo(o2.getVertex().getSimpleName());
 			}
+		});
 
-			assertEquals(0, executions.size());
+		int cnt = 0;
+		for (Execution e : execList) {
+			cnt++;
+			e.markFinished();
+			if (cnt <= 6) {
+				// the last execution of the first job vertex triggers the failing finalize hook
+				assertEquals(ExecutionState.FINISHED, e.getState());
+			}
+			else {
+				// all following executions should be canceled
+				assertEquals(ExecutionState.CANCELED, e.getState());
+			}
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+
+		assertEquals(0, executions.size());
 	}
 
 	private Map<ExecutionAttemptID, Execution> setupExecution(JobVertex v1, int dop1, JobVertex v2, int dop2) throws Exception {
