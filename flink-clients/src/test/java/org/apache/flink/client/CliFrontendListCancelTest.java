@@ -27,6 +27,7 @@ import org.apache.flink.runtime.akka.FlinkUntypedActor;
 import org.apache.flink.runtime.instance.AkkaActorGateway;
 import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.messages.JobManagerMessages;
+import org.apache.flink.util.TestLogger;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,7 +37,7 @@ import java.util.UUID;
 import static org.apache.flink.client.CliFrontendTestUtils.pipeSystemOutToNull;
 import static org.junit.Assert.*;
 
-public class CliFrontendListCancelTest {
+public class CliFrontendListCancelTest extends TestLogger {
 
 	private static ActorSystem actorSystem;
 
@@ -53,114 +54,101 @@ public class CliFrontendListCancelTest {
 	}
 	
 	@BeforeClass
-	public static void init() {
+	public static void init() throws Exception {
 		CliFrontendTestUtils.pipeSystemOutToNull();
 		CliFrontendTestUtils.clearGlobalConfiguration();
 	}
 	
 	@Test
-	public void testCancel() {
-		try {
-			// test unrecognized option
-			{
-				String[] parameters = {"-v", "-l"};
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.cancel(parameters);
-				assertTrue(retCode != 0);
-			}
-			
-			// test missing job id
-			{
-				String[] parameters = {};
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.cancel(parameters);
-				assertTrue(retCode != 0);
-			}
-			
-			// test cancel properly
-			{
-				JobID jid = new JobID();
-				String jidString = jid.toString();
-
-				final UUID leaderSessionID = UUID.randomUUID();
-
-				final ActorRef jm = actorSystem.actorOf(Props.create(
-								CliJobManager.class,
-								jid,
-								leaderSessionID
-						)
-				);
-
-				final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
-				
-				String[] parameters = { jidString };
-				InfoListTestCliFrontend testFrontend = new InfoListTestCliFrontend(gateway);
-
-				int retCode = testFrontend.cancel(parameters);
-				assertTrue(retCode == 0);
-			}
-
-			// test cancel properly
-			{
-				JobID jid1 = new JobID();
-				JobID jid2 = new JobID();
-
-				final UUID leaderSessionID = UUID.randomUUID();
-
-				final ActorRef jm = actorSystem.actorOf(
-						Props.create(
-								CliJobManager.class,
-								jid1,
-								leaderSessionID
-						)
-				);
-
-				final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
-
-				String[] parameters = { jid2.toString() };
-				InfoListTestCliFrontend testFrontend = new InfoListTestCliFrontend(gateway);
-
-				assertTrue(testFrontend.cancel(parameters) != 0);
-			}
+	public void testCancel() throws Exception {
+		// test unrecognized option
+		{
+			String[] parameters = {"-v", "-l"};
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.cancel(parameters);
+			assertTrue(retCode != 0);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail("Program caused an exception: " + e.getMessage());
+		
+		// test missing job id
+		{
+			String[] parameters = {};
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.cancel(parameters);
+			assertTrue(retCode != 0);
+		}
+		
+		// test cancel properly
+		{
+			JobID jid = new JobID();
+			String jidString = jid.toString();
+
+			final UUID leaderSessionID = UUID.randomUUID();
+
+			final ActorRef jm = actorSystem.actorOf(Props.create(
+							CliJobManager.class,
+							jid,
+							leaderSessionID
+					)
+			);
+
+			final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
+				
+			String[] parameters = { jidString };
+			InfoListTestCliFrontend testFrontend = new InfoListTestCliFrontend(gateway);
+
+			int retCode = testFrontend.cancel(parameters);
+			assertTrue(retCode == 0);
+		}
+
+		// test cancel properly
+		{
+			JobID jid1 = new JobID();
+			JobID jid2 = new JobID();
+
+			final UUID leaderSessionID = UUID.randomUUID();
+
+			final ActorRef jm = actorSystem.actorOf(
+					Props.create(
+							CliJobManager.class,
+							jid1,
+							leaderSessionID
+					)
+			);
+
+			final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
+
+			String[] parameters = { jid2.toString() };
+			InfoListTestCliFrontend testFrontend = new InfoListTestCliFrontend(gateway);
+
+			assertTrue(testFrontend.cancel(parameters) != 0);
 		}
 	}
 
 	@Test
-	public void testList() {
-		try {
-			// test unrecognized option
-			{
-				String[] parameters = {"-v", "-k"};
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.list(parameters);
-				assertTrue(retCode != 0);
-			}
-			
-			// test list properly
-			{
-				final UUID leaderSessionID = UUID.randomUUID();
-				final ActorRef jm = actorSystem.actorOf(
-						Props.create(
-								CliJobManager.class,
-								null,
-								leaderSessionID
-						)
-				);
-				final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
-				String[] parameters = {"-r", "-s"};
-				InfoListTestCliFrontend testFrontend = new InfoListTestCliFrontend(gateway);
-				int retCode = testFrontend.list(parameters);
-				assertTrue(retCode == 0);
-			}
+	public void testList() throws Exception {
+		// test unrecognized option
+		{
+			String[] parameters = {"-v", "-k"};
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.list(parameters);
+			assertTrue(retCode != 0);
 		}
-		catch (Exception e) {
-			System.err.println(e.getMessage());
-			e.printStackTrace();
-			fail("Program caused an exception: " + e.getMessage());
+		
+		// test list properly
+		{
+			final UUID leaderSessionID = UUID.randomUUID();
+			final ActorRef jm = actorSystem.actorOf(
+					Props.create(
+							CliJobManager.class,
+							null,
+							leaderSessionID
+					)
+			);
+			final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
+			String[] parameters = {"-r", "-s"};
+			InfoListTestCliFrontend testFrontend = new InfoListTestCliFrontend(gateway);
+			int retCode = testFrontend.list(parameters);
+			assertTrue(retCode == 0);
 		}
 	}
 

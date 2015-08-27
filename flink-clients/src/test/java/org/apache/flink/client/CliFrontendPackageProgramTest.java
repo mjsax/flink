@@ -23,7 +23,6 @@ import static org.apache.flink.client.CliFrontendTestUtils.TEST_JAR_MAIN_CLASS;
 import static org.apache.flink.client.CliFrontendTestUtils.getNonJarFilePath;
 import static org.apache.flink.client.CliFrontendTestUtils.getTestJarPath;
 import static org.apache.flink.client.CliFrontendTestUtils.pipeSystemOutToNull;
-
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -34,13 +33,14 @@ import org.apache.flink.client.cli.RunOptions;
 import org.apache.flink.client.program.Client;
 import org.apache.flink.client.program.PackagedProgram;
 import org.apache.flink.client.program.ProgramInvocationException;
-import org.apache.flink.optimizer.CompilerException;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 
 import org.apache.flink.optimizer.DataStatistics;
 import org.apache.flink.optimizer.Optimizer;
 import org.apache.flink.optimizer.costs.DefaultCostEstimator;
+import org.apache.flink.util.TestLogger;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,187 +48,116 @@ import org.junit.Test;
 import java.io.FileNotFoundException;
 
 
-public class CliFrontendPackageProgramTest {
-	
+public class CliFrontendPackageProgramTest extends TestLogger {
+
 	@BeforeClass
 	public static void init() {
 		pipeSystemOutToNull();
 	}
 
-	@Test
-	public void testNonExistingJarFile() {
-		try {
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+	@Test(expected = FileNotFoundException.class)
+	public void testNonExistingJarFile() throws Exception {
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 
-			ProgramOptions options = mock(ProgramOptions.class);
-			when(options.getJarFilePath()).thenReturn("/some/none/existing/path");
+		ProgramOptions options = mock(ProgramOptions.class);
+		when(options.getJarFilePath()).thenReturn("/some/none/existing/path");
 
-			try {
-				frontend.buildProgram(options);
-				fail("should throw an exception");
-			}
-			catch (FileNotFoundException e) {
-				// that's what we want
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		frontend.buildProgram(options);
 	}
-	
-	@Test
-	public void testFileNotJarFile() {
-		try {
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 
-			ProgramOptions options = mock(ProgramOptions.class);
-			when(options.getJarFilePath()).thenReturn(getNonJarFilePath());
+	@Test(expected = ProgramInvocationException.class)
+	public void testFileNotJarFile() throws Exception {
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 
-			try {
-				frontend.buildProgram(options);
-				fail("should throw an exception");
-			}
-			catch (ProgramInvocationException e) {
-				// that's what we want
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		ProgramOptions options = mock(ProgramOptions.class);
+		when(options.getJarFilePath()).thenReturn(getNonJarFilePath());
+
+		frontend.buildProgram(options);
 	}
-	
+
 	@Test
-	public void testVariantWithExplicitJarAndArgumentsOption() {
-		try {
-			String[] arguments = {"-j", getTestJarPath(), "-a", "--debug", "true", "arg1", "arg2"};
-			String[] reducedArguments = new String[] {"--debug", "true", "arg1", "arg2"};
+	public void testVariantWithExplicitJarAndArgumentsOption() throws Exception {
+		String[] arguments = {"-j", getTestJarPath(), "-a", "--debug", "true", "arg1", "arg2"};
+		String[] reducedArguments = new String[] {"--debug", "true", "arg1", "arg2"};
 
-			RunOptions options = CliFrontendParser.parseRunCommand(arguments);
-			assertEquals(getTestJarPath(), options.getJarFilePath());
-			assertArrayEquals(reducedArguments, options.getProgramArgs());
+		RunOptions options = CliFrontendParser.parseRunCommand(arguments);
+		assertEquals(getTestJarPath(), options.getJarFilePath());
+		assertArrayEquals(reducedArguments, options.getProgramArgs());
 
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-			PackagedProgram prog = frontend.buildProgram(options);
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+		PackagedProgram prog = frontend.buildProgram(options);
 
-			Assert.assertArrayEquals(reducedArguments, prog.getArguments());
-			Assert.assertEquals(TEST_JAR_MAIN_CLASS, prog.getMainClassName());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		Assert.assertArrayEquals(reducedArguments, prog.getArguments());
+		Assert.assertEquals(TEST_JAR_MAIN_CLASS, prog.getMainClassName());
 	}
-	
+
 	@Test
-	public void testVariantWithExplicitJarAndNoArgumentsOption() {
-		try {
-			String[] arguments = {"-j", getTestJarPath(), "--debug", "true", "arg1", "arg2"};
-			String[] reducedArguments = new String[] {"--debug", "true", "arg1", "arg2"};
+	public void testVariantWithExplicitJarAndNoArgumentsOption() throws Exception {
+		String[] arguments = {"-j", getTestJarPath(), "--debug", "true", "arg1", "arg2"};
+		String[] reducedArguments = new String[] {"--debug", "true", "arg1", "arg2"};
 
-			RunOptions options = CliFrontendParser.parseRunCommand(arguments);
-			assertEquals(getTestJarPath(), options.getJarFilePath());
-			assertArrayEquals(reducedArguments, options.getProgramArgs());
+		RunOptions options = CliFrontendParser.parseRunCommand(arguments);
+		assertEquals(getTestJarPath(), options.getJarFilePath());
+		assertArrayEquals(reducedArguments, options.getProgramArgs());
 
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 
-			PackagedProgram prog = frontend.buildProgram(options);
+		PackagedProgram prog = frontend.buildProgram(options);
 
-			Assert.assertArrayEquals(reducedArguments, prog.getArguments());
-			Assert.assertEquals(TEST_JAR_MAIN_CLASS, prog.getMainClassName());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		Assert.assertArrayEquals(reducedArguments, prog.getArguments());
+		Assert.assertEquals(TEST_JAR_MAIN_CLASS, prog.getMainClassName());
 	}
-	
+
 	@Test
-	public void testValidVariantWithNoJarAndNoArgumentsOption() {
-		try {
-			String[] arguments = {getTestJarPath(), "--debug", "true", "arg1", "arg2"};
-			String[] reducedArguments = {"--debug", "true", "arg1", "arg2"};
+	public void testValidVariantWithNoJarAndNoArgumentsOption() throws Exception {
+		String[] arguments = {getTestJarPath(), "--debug", "true", "arg1", "arg2"};
+		String[] reducedArguments = {"--debug", "true", "arg1", "arg2"};
 
-			RunOptions options = CliFrontendParser.parseRunCommand(arguments);
-			assertEquals(getTestJarPath(), options.getJarFilePath());
-			assertArrayEquals(reducedArguments, options.getProgramArgs());
+		RunOptions options = CliFrontendParser.parseRunCommand(arguments);
+		assertEquals(getTestJarPath(), options.getJarFilePath());
+		assertArrayEquals(reducedArguments, options.getProgramArgs());
 
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 
-			PackagedProgram prog = frontend.buildProgram(options);
+		PackagedProgram prog = frontend.buildProgram(options);
 
-			Assert.assertArrayEquals(reducedArguments, prog.getArguments());
-			Assert.assertEquals(TEST_JAR_MAIN_CLASS, prog.getMainClassName());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		Assert.assertArrayEquals(reducedArguments, prog.getArguments());
+		Assert.assertEquals(TEST_JAR_MAIN_CLASS, prog.getMainClassName());
 	}
-	
+
 	@Test
-	public void testNoJarNoArgumentsAtAll() {
-		try {
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-			assertTrue(frontend.run(new String[0]) != 0);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+	public void testNoJarNoArgumentsAtAll() throws Exception {
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+		assertTrue(frontend.run(new String[0]) != 0);
 	}
-	
-	@Test
-	public void testNonExistingFileWithArguments() {
-		try {
-			String[] arguments = {"/some/none/existing/path", "--debug", "true", "arg1", "arg2"};
-			String[] reducedArguments = {"--debug", "true", "arg1", "arg2"};
 
-			RunOptions options = CliFrontendParser.parseRunCommand(arguments);
-			assertEquals(arguments[0], options.getJarFilePath());
-			assertArrayEquals(reducedArguments, options.getProgramArgs());
+	@Test(expected = FileNotFoundException.class)
+	public void testNonExistingFileWithArguments() throws Exception {
+		String[] arguments = {"/some/none/existing/path", "--debug", "true", "arg1", "arg2"};
+		String[] reducedArguments = {"--debug", "true", "arg1", "arg2"};
 
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+		RunOptions options = CliFrontendParser.parseRunCommand(arguments);
+		assertEquals(arguments[0], options.getJarFilePath());
+		assertArrayEquals(reducedArguments, options.getProgramArgs());
 
-			try {
-				frontend.buildProgram(options);
-				fail("Should fail with an exception");
-			}
-			catch (FileNotFoundException e) {
-				// that's what we want
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+
+		frontend.buildProgram(options);
 	}
-	
-	@Test
-	public void testNonExistingFileWithoutArguments() {
-		try {
-			String[] arguments = {"/some/none/existing/path"};
 
-			RunOptions options = CliFrontendParser.parseRunCommand(arguments);
-			assertEquals(arguments[0], options.getJarFilePath());
-			assertArrayEquals(new String[0], options.getProgramArgs());
+	@Test(expected = FileNotFoundException.class)
+	public void testNonExistingFileWithoutArguments() throws Exception {
+		String[] arguments = {"/some/none/existing/path"};
 
-			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+		RunOptions options = CliFrontendParser.parseRunCommand(arguments);
+		assertEquals(arguments[0], options.getJarFilePath());
+		assertArrayEquals(new String[0], options.getProgramArgs());
 
-			try {
-				frontend.buildProgram(options);
-			}
-			catch (FileNotFoundException e) {
-				// that's what we want
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+
+		frontend.buildProgram(options);
 	}
-	
+
 	/**
 	 * Ensure that we will never have the following error.
 	 *
@@ -262,8 +191,8 @@ public class CliFrontendPackageProgramTest {
 	 *   <li> the classloader will accept the special class (and return a String.class)
 	 * </ul>
 	 */
-	@Test
-	public void testPlanWithExternalClass() throws CompilerException, ProgramInvocationException {
+	@Test(expected = ClassNotFoundException.class)
+	public void testPlanWithExternalClass() throws Throwable {
 		final boolean[] callme = { false }; // create a final object reference, to be able to change its val later
 
 		try {
@@ -276,7 +205,7 @@ public class CliFrontendPackageProgramTest {
 			assertEquals(getTestJarPath(), options.getJarFilePath());
 			assertEquals(TEST_JAR_CLASSLOADERTEST_CLASS, options.getEntryPointClassName());
 			assertArrayEquals(progArgs, options.getProgramArgs());
-			
+
 			CliFrontend frontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 			PackagedProgram prog = spy(frontend.buildProgram(options));
 
@@ -304,15 +233,8 @@ public class CliFrontendPackageProgramTest {
 			fail("Should have failed with a ClassNotFoundException");
 		}
 		catch (ProgramInvocationException e) {
-			if (!(e.getCause() instanceof ClassNotFoundException)) {
-				e.printStackTrace();
-				fail("Program didn't throw ClassNotFoundException");
-			}
 			assertTrue("Classloader was not called", callme[0]);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail("Program failed with the wrong exception: " + e.getClass().getName());
+			throw e.getCause();
 		}
 	}
 }

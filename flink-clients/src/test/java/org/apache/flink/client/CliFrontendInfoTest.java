@@ -18,6 +18,7 @@
 
 package org.apache.flink.client;
 
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -25,58 +26,47 @@ import java.io.PrintStream;
 
 import static org.junit.Assert.*;
 
-public class CliFrontendInfoTest {
-	
+public class CliFrontendInfoTest extends TestLogger {
+
 	private static PrintStream stdOut;
 	private static PrintStream capture;
 	private static ByteArrayOutputStream buffer;
 
 	@Test
-	public void testErrorCases() {
-		try {
-			// test unrecognized option
-			{
-				String[] parameters = {"-v", "-l"};
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.cancel(parameters);
-				assertTrue(retCode != 0);
-			}
-			
-			// test missing options
-			{
-				String[] parameters = {};
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.cancel(parameters);
-				assertTrue(retCode != 0);
-			}
+	public void testErrorCases() throws Exception {
+		// test unrecognized option
+		{
+			String[] parameters = {"-v", "-l"};
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.cancel(parameters);
+			assertTrue(retCode != 0);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail("Program caused an exception: " + e.getMessage());
+
+		// test missing options
+		{
+			String[] parameters = {};
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.cancel(parameters);
+			assertTrue(retCode != 0);
 		}
 	}
-	
+
 	@Test
-	public void testShowExecutionPlan() {
+	public void testShowExecutionPlan() throws Exception {
 		replaceStdOut();
 		try {
-
 			String[] parameters = new String[] { CliFrontendTestUtils.getTestJarPath() };
 			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
 			int retCode = testFrontend.info(parameters);
 			assertTrue(retCode == 0);
 			assertTrue(buffer.toString().contains("\"parallelism\": \"1\""));
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail("Program caused an exception: " + e.getMessage());
 		} finally {
 			restoreStdOut();
 		}
 	}
-	
+
 	@Test
-	public void testShowExecutionPlanWithParallelism() {
+	public void testShowExecutionPlanWithParallelism() throws Exception {
 		replaceStdOut();
 		try {
 			String[] parameters = {"-p", "17", CliFrontendTestUtils.getTestJarPath()};
@@ -84,10 +74,6 @@ public class CliFrontendInfoTest {
 			int retCode = testFrontend.info(parameters);
 			assertTrue(retCode == 0);
 			assertTrue(buffer.toString().contains("\"parallelism\": \"17\""));
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail("Program caused an exception: " + e.getMessage());
 		} finally {
 			restoreStdOut();
 		}

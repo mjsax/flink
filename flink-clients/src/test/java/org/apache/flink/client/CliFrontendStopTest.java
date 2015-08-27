@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.flink.client;
 
 import java.util.UUID;
@@ -27,15 +26,16 @@ import org.apache.flink.client.cli.CommandLineOptions;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.instance.AkkaActorGateway;
+import org.apache.flink.runtime.messages.JobManagerMessages;
+import org.apache.flink.util.TestLogger;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import scala.Option;
 import static org.apache.flink.client.CliFrontendTestUtils.pipeSystemOutToNull;
 import static org.junit.Assert.*;
 
-public class CliFrontendStopTest {
+public class CliFrontendStopTest extends TestLogger {
 
 	private static ActorSystem actorSystem;
 
@@ -52,65 +52,60 @@ public class CliFrontendStopTest {
 	}
 
 	@BeforeClass
-	public static void init() {
+	public static void init() throws Exception {
 		CliFrontendTestUtils.pipeSystemOutToNull();
 		CliFrontendTestUtils.clearGlobalConfiguration();
 	}
 
 	@Test
-	public void testStop() {
-		try {
-			// test unrecognized option
-			{
-				String[] parameters = { "-v", "-l" };
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.stop(parameters);
-				assertTrue(retCode != 0);
-			}
+	public void testStop() throws Exception {
+		// test unrecognized option
+		{
+			String[] parameters = { "-v", "-l" };
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.stop(parameters);
+			assertTrue(retCode != 0);
+		}
 
-			// test missing job id
-			{
-				String[] parameters = {};
-				CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
-				int retCode = testFrontend.stop(parameters);
-				assertTrue(retCode != 0);
-			}
+		// test missing job id
+		{
+			String[] parameters = {};
+			CliFrontend testFrontend = new CliFrontend(CliFrontendTestUtils.getConfigDir());
+			int retCode = testFrontend.stop(parameters);
+			assertTrue(retCode != 0);
+		}
 
-			// test stop properly
-			{
-				JobID jid = new JobID();
-				String jidString = jid.toString();
+		// test stop properly
+		{
+			JobID jid = new JobID();
+			String jidString = jid.toString();
 
-				final UUID leaderSessionID = UUID.randomUUID();
-				final ActorRef jm = actorSystem.actorOf(Props.create(CliJobManager.class, jid));
+			final UUID leaderSessionID = UUID.randomUUID();
+			final ActorRef jm = actorSystem.actorOf(Props.create(CliJobManager.class, jid));
 
-				final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
+			final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
 
-				String[] parameters = { jidString };
-				StopTestCliFrontend testFrontend = new StopTestCliFrontend(gateway);
+			String[] parameters = { jidString };
+			StopTestCliFrontend testFrontend = new StopTestCliFrontend(gateway);
 
-				int retCode = testFrontend.stop(parameters);
-				assertTrue(retCode == 0);
-			}
+			int retCode = testFrontend.stop(parameters);
+			assertTrue(retCode == 0);
+		}
 
-			// test stop properly
-			{
-				JobID jid1 = new JobID();
-				JobID jid2 = new JobID();
+		// test stop properly
+		{
+			JobID jid1 = new JobID();
+			JobID jid2 = new JobID();
 
-				final UUID leaderSessionID = UUID.randomUUID();
-				final ActorRef jm = actorSystem.actorOf(Props.create(CliJobManager.class, jid1));
+			final UUID leaderSessionID = UUID.randomUUID();
+			final ActorRef jm = actorSystem.actorOf(Props.create(CliJobManager.class, jid1));
 
-				final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
+			final ActorGateway gateway = new AkkaActorGateway(jm, leaderSessionID);
 
-				String[] parameters = { jid2.toString() };
-				StopTestCliFrontend testFrontend = new StopTestCliFrontend(gateway);
+			String[] parameters = { jid2.toString() };
+			StopTestCliFrontend testFrontend = new StopTestCliFrontend(gateway);
 
-				assertTrue(testFrontend.stop(parameters) != 0);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			fail("Program caused an exception: " + e.getMessage());
+			assertTrue(testFrontend.stop(parameters) != 0);
 		}
 	}
 
@@ -144,12 +139,13 @@ public class CliFrontendStopTest {
 				if (jobID != null && jobID.equals(stopJob.jobID())) {
 					getSender().tell(new Status.Success(new Object()), getSelf());
 				} else {
-					getSender().tell(new Status.Failure(new Exception("Wrong or no JobID")), getSelf());
+					getSender().tell(new Status.Failure(new Exception("Wrong or no JobID")),
+							getSelf());
 				}
 			} else {
 				getSender().tell(
-						new Status.Failure(new Exception("Expected 'stop' signal but got " + message.getClass())),
-						getSelf());
+						new Status.Failure(new Exception("Expected 'stop' signal but got "
+								+ message.getClass())), getSelf());
 			}
 		}
 	}
