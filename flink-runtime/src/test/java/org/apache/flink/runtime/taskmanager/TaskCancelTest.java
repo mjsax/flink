@@ -18,6 +18,10 @@
 
 package org.apache.flink.runtime.taskmanager;
 
+import akka.actor.ActorRef;
+import akka.pattern.Patterns;
+import akka.util.Timeout;
+
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.ConfigConstants;
@@ -40,18 +44,19 @@ import org.apache.flink.runtime.messages.JobManagerMessages.JobNotFound;
 import org.apache.flink.runtime.testingUtils.TestingCluster;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.types.IntValue;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
+
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.FiniteDuration;
-
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.flink.runtime.messages.JobManagerMessages.CancelJob;
 import static org.apache.flink.runtime.messages.JobManagerMessages.CancellationFailure;
 import static org.apache.flink.runtime.messages.JobManagerMessages.RequestJobStatus;
 import static org.junit.Assert.fail;
 
-public class TaskCancelTest {
+public class TaskCancelTest extends TestLogger {
 
 	@Test
 	public void testCancelUnion() throws Exception {

@@ -67,8 +67,6 @@ import org.apache.flink.util.TestLogger;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import scala.Option;
 import scala.concurrent.Await;
@@ -113,7 +111,7 @@ public class TaskManagerTest extends TestLogger {
 	}
 	
 	@Test
-	public void testSubmitAndExecuteTask() {
+	public void testSubmitAndExecuteTask() throws Exception {
 		new JavaTestKit(system){{
 
 			ActorGateway taskManager = null;
@@ -209,10 +207,6 @@ public class TaskManagerTest extends TestLogger {
 					}
 				};
 			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
-			}
 			finally {
 				// shut down the actors
 				TestingUtils.stopActor(taskManager);
@@ -222,7 +216,7 @@ public class TaskManagerTest extends TestLogger {
 	}
 	
 	@Test
-	public void testJobSubmissionAndCanceling() {
+	public void testJobSubmissionAndCanceling() throws Exception {
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -336,15 +330,10 @@ public class TaskManagerTest extends TestLogger {
 
 							assertEquals(0, runningTasks.size());
 						} catch (Exception e) {
-							e.printStackTrace();
-							fail(e.getMessage());
+							throw new RuntimeException(e);
 						}
 					}
 				};
-			}
-			catch(Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				TestingUtils.stopActor(taskManager);
@@ -354,7 +343,7 @@ public class TaskManagerTest extends TestLogger {
 	}
 
 	@Test
-	public void testJobSubmissionAndStop() {
+	public void testJobSubmissionAndStop() throws Exception {
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -465,15 +454,10 @@ public class TaskManagerTest extends TestLogger {
 
 							assertEquals(1, runningTasks.size());
 						} catch (Exception e) {
-							e.printStackTrace();
-							fail(e.getMessage());
+							throw new RuntimeException(e);
 						}
 					}
 				};
-			}
-			catch(Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				TestingUtils.stopActor(taskManager);
@@ -483,7 +467,7 @@ public class TaskManagerTest extends TestLogger {
 	}
 
 	@Test
-	public void testGateChannelEdgeMismatch() {
+	public void testGateChannelEdgeMismatch() throws Exception {
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -551,15 +535,10 @@ public class TaskManagerTest extends TestLogger {
 
 							assertEquals(0, tasks.size());
 						} catch (Exception e){
-							e.printStackTrace();
-							fail(e.getMessage());
+							new RuntimeException(e);
 						}
 					}
 				};
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				// shut down the actors
@@ -570,7 +549,7 @@ public class TaskManagerTest extends TestLogger {
 	}
 	
 	@Test
-	public void testRunJobWithForwardChannel() {
+	public void testRunJobWithForwardChannel() throws Exception {
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -679,15 +658,10 @@ public class TaskManagerTest extends TestLogger {
 							assertEquals(0, tasks.size());
 						}
 						catch (Exception e) {
-							e.printStackTrace();
-							fail(e.getMessage());
+							throw new RuntimeException(e);
 						}
 					}
 				};
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				// shut down the actors
@@ -698,7 +672,7 @@ public class TaskManagerTest extends TestLogger {
 	}
 	
 	@Test
-	public void testCancellingDependentAndStateUpdateFails() {
+	public void testCancellingDependentAndStateUpdateFails() throws Exception {
 		// this tests creates two tasks. the sender sends data, and fails to send the
 		// state update back to the job manager
 		// the second one blocks to be canceled
@@ -818,15 +792,10 @@ public class TaskManagerTest extends TestLogger {
 							assertEquals(0, tasks.size());
 						}
 						catch(Exception e) {
-							e.printStackTrace();
-							fail(e.getMessage());
+							throw new RuntimeException(e);
 						}
 					}
 				};
-			}
-			catch(Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				// shut down the actors
@@ -917,10 +886,6 @@ public class TaskManagerTest extends TestLogger {
 								msg.getError(ClassLoader.getSystemClassLoader()).getClass());
 					}
 				};
-			}
-			catch(Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				TestingUtils.stopActor(taskManager);
@@ -1013,10 +978,6 @@ public class TaskManagerTest extends TestLogger {
 						}
 					}
 				};
-			}
-			catch(Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				TestingUtils.stopActor(taskManager);

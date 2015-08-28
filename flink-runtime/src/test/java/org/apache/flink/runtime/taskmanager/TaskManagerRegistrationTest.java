@@ -100,7 +100,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 	 * JobManager.
 	 */
 	@Test
-	public void testSimpleRegistration() {
+	public void testSimpleRegistration() throws Exception {
 		new JavaTestKit(actorSystem) {{
 
 			ActorGateway jobManager = null;
@@ -150,10 +150,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 
 				Integer count = (Integer) Await.result(numTaskManagersFuture, timeout);
 				assertEquals(2, count.intValue());
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			} finally {
 				stopActor(taskManager1);
 				stopActor(taskManager2);
@@ -167,7 +163,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 	 * JobManager.
 	 */
 	@Test
-	public void testDelayedRegistration() {
+	public void testDelayedRegistration() throws Exception {
 		new JavaTestKit(actorSystem) {{
 			ActorGateway jobManager = null;
 			ActorGateway taskManager = null;
@@ -203,10 +199,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 				Class<?> confirmClass = TaskManagerMessages.getRegisteredAtJobManagerMessage().getClass();
 				assertTrue(response != null && confirmClass.isAssignableFrom(response.getClass()));
 
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			} finally {
 				stopActor(taskManager);
 				stopActor(jobManager);
@@ -226,7 +218,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 	 * did not shut down after its registration timeout expired.
 	 */
 	@Test
-	public void testShutdownAfterRegistrationDurationExpired() {
+	public void testShutdownAfterRegistrationDurationExpired() throws Exception {
 		new JavaTestKit(actorSystem) {{
 
 			ActorGateway taskManager = null;
@@ -256,10 +248,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 						expectTerminated(tm.actor());
 					}
 				};
-			}
-			catch (Throwable e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			} finally {
 				stopActor(taskManager);
 			}
@@ -271,7 +259,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 	 * registration attempts have been refused.
 	 */
 	@Test
-	public void testTaskManagerResumesConnectAfterRefusedRegistration() {
+	public void testTaskManagerResumesConnectAfterRefusedRegistration() throws Exception {
 		new JavaTestKit(actorSystem) {{
 			ActorGateway jm = null;
 			ActorGateway taskManager =null;
@@ -314,10 +302,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 						expectMsgClass(RegisterTaskManager.class);
 					}
 				};
-			}
-			catch (Throwable e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			} finally {
 				stopActor(taskManager);
 				stopActor(jm);
@@ -330,7 +314,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 	 * to the JobManager.
 	 */
 	@Test
-	public void testTaskManagerResumesConnectAfterJobManagerFailure() {
+	public void testTaskManagerResumesConnectAfterJobManagerFailure() throws Exception {
 		new JavaTestKit(actorSystem) {{
 			ActorGateway fakeJobManager1Gateway = null;
 			ActorGateway fakeJobManager2Gateway = null;
@@ -434,10 +418,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 								fakeJM2GatewayClosure);
 					}
 				};
-			}
-			catch (Throwable e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			} finally {
 				stopActor(taskManagerGateway);
 				stopActor(fakeJobManager1Gateway);
@@ -448,7 +428,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 
 
 	@Test
-	public void testStartupWhenNetworkStackFailsToInitialize() {
+	public void testStartupWhenNetworkStackFailsToInitialize() throws Exception {
 
 		ServerSocket blocker = null;
 
@@ -490,11 +470,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 				}
 			}};
 		}
-		catch (Exception e) {
-			// does not work, skip test
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
 		finally {
 			if (blocker != null) {
 				try {
@@ -508,7 +483,7 @@ public class TaskManagerRegistrationTest extends TestLogger {
 	}
 
 	@Test
-	public void testCheckForValidRegistrationSessionIDs() {
+	public void testCheckForValidRegistrationSessionIDs() throws Exception {
 		new JavaTestKit(actorSystem) {{
 
 			ActorGateway taskManagerGateway = null;
@@ -574,10 +549,6 @@ public class TaskManagerRegistrationTest extends TestLogger {
 						expectMsgEquals(new JobManagerMessages.ResponseLeaderSessionID(trueLeaderSessionID));
 					}
 				};
-			}
-			catch (Throwable e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			} finally {
 				stopActor(taskManagerGateway);
 			}

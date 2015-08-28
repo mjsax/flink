@@ -26,14 +26,15 @@ import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.messages.JobManagerMessages;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
-import scala.concurrent.duration.FiniteDuration;
 
+import scala.concurrent.duration.FiniteDuration;
 import static org.junit.Assert.*;
 
 import java.util.concurrent.TimeUnit;
 
-public class TaskInputSplitProviderTest {
+public class TaskInputSplitProviderTest extends TestLogger {
 
 	@Test
 	public void testRequestNextInputSplitWithInvalidExecutionID() {

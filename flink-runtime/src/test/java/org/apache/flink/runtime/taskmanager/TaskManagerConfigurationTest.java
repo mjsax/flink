@@ -21,13 +21,13 @@ package org.apache.flink.runtime.taskmanager;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.IllegalConfigurationException;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import scala.Tuple2;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
 
@@ -37,74 +37,62 @@ import static org.junit.Assert.*;
  * Validates that the TaskManager startup properly obeys the configuration
  * values.
  */
-public class TaskManagerConfigurationTest {
+public class TaskManagerConfigurationTest extends TestLogger {
 
 	@Test
-	public void testUsePreconfiguredNetworkInterface() {
+	public void testUsePreconfiguredNetworkInterface() throws IllegalConfigurationException, IOException {
+		final String TEST_HOST_NAME = "testhostname";
+
+		Configuration config = new Configuration();
+		config.setString(ConfigConstants.TASK_MANAGER_HOSTNAME_KEY, TEST_HOST_NAME);
+		config.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, "localhost");
+		config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 7891);
+
+		Tuple2<String, Object> address = TaskManager.selectNetworkInterfaceAndPort(config);
+
+		// validate the configured test host name
+		assertEquals(TEST_HOST_NAME, address._1());
+	}
+
+	@Test
+	public void testActorSystemPortConfig() throws IllegalConfigurationException, IOException {
+		// config with pre-configured hostname to speed up tests (no interface selection)
+		Configuration config = new Configuration();
+		config.setString(ConfigConstants.TASK_MANAGER_HOSTNAME_KEY, "localhost");
+		config.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, "localhost");
+		config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 7891);
+
+		// auto port
+		assertEquals(0, TaskManager.selectNetworkInterfaceAndPort(config)._2());
+
+		// pre-defined port
+		final int testPort = 22551;
+		config.setInteger(ConfigConstants.TASK_MANAGER_IPC_PORT_KEY, testPort);
+		assertEquals(testPort, TaskManager.selectNetworkInterfaceAndPort(config)._2());
+
+		// invalid port
 		try {
-			final String TEST_HOST_NAME = "testhostname";
-
-			Configuration config = new Configuration();
-			config.setString(ConfigConstants.TASK_MANAGER_HOSTNAME_KEY, TEST_HOST_NAME);
-			config.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, "localhost");
-			config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 7891);
-
-			Tuple2<String, Object> address = TaskManager.selectNetworkInterfaceAndPort(config);
-
-			// validate the configured test host name
-			assertEquals(TEST_HOST_NAME, address._1());
+			config.setInteger(ConfigConstants.TASK_MANAGER_IPC_PORT_KEY, -1);
+			TaskManager.selectNetworkInterfaceAndPort(config);
+			fail("should fail with an exception");
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (IllegalConfigurationException e) {
+			// bam!
+		}
+
+		// invalid port
+		try {
+			config.setInteger(ConfigConstants.TASK_MANAGER_IPC_PORT_KEY, 100000);
+			TaskManager.selectNetworkInterfaceAndPort(config);
+			fail("should fail with an exception");
+		}
+		catch (IllegalConfigurationException e) {
+			// bam!
 		}
 	}
 
 	@Test
-	public void testActorSystemPortConfig() {
-		try {
-			// config with pre-configured hostname to speed up tests (no interface selection)
-			Configuration config = new Configuration();
-			config.setString(ConfigConstants.TASK_MANAGER_HOSTNAME_KEY, "localhost");
-			config.setString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, "localhost");
-			config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 7891);
-
-			// auto port
-			assertEquals(0, TaskManager.selectNetworkInterfaceAndPort(config)._2());
-
-			// pre-defined port
-			final int testPort = 22551;
-			config.setInteger(ConfigConstants.TASK_MANAGER_IPC_PORT_KEY, testPort);
-			assertEquals(testPort, TaskManager.selectNetworkInterfaceAndPort(config)._2());
-
-			// invalid port
-			try {
-				config.setInteger(ConfigConstants.TASK_MANAGER_IPC_PORT_KEY, -1);
-				TaskManager.selectNetworkInterfaceAndPort(config);
-				fail("should fail with an exception");
-			}
-			catch (IllegalConfigurationException e) {
-				// bam!
-			}
-
-			// invalid port
-			try {
-				config.setInteger(ConfigConstants.TASK_MANAGER_IPC_PORT_KEY, 100000);
-				TaskManager.selectNetworkInterfaceAndPort(config);
-				fail("should fail with an exception");
-			}
-			catch (IllegalConfigurationException e) {
-				// bam!
-			}
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
-	}
-
-	@Test
-	public void testNetworkInterfaceSelection() {
+	public void testNetworkInterfaceSelection() throws IllegalConfigurationException, IOException {
 		ServerSocket server;
 		String hostname = "localhost";
 
@@ -131,10 +119,6 @@ public class TaskManagerConfigurationTest {
 			config.setInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, server.getLocalPort());
 
 			assertNotNull(TaskManager.selectNetworkInterfaceAndPort(config)._1());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
 		}
 		finally {
 			try {

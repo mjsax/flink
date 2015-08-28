@@ -44,13 +44,14 @@ import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.memory.MemoryManager;
 import org.apache.flink.runtime.messages.TaskMessages;
-
+import org.apache.flink.util.TestLogger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import scala.concurrent.duration.FiniteDuration;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Map;
@@ -64,7 +65,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -81,7 +81,7 @@ import static org.mockito.Mockito.when;
  * execution listener, which simply put the messages in a queue to be picked
  * up by the test and validated.
  */
-public class TaskTest {
+public class TaskTest extends TestLogger {
 	
 	private static OneShotLatch awaitLatch;
 	private static OneShotLatch triggerLatch;
@@ -123,465 +123,369 @@ public class TaskTest {
 	// ------------------------------------------------------------------------
 	
 	@Test
-	public void testRegularExecution() {
-		try {
-			Task task = createTask(TestInvokableCorrect.class);
-			
-			// task should be new and perfect
-			assertEquals(ExecutionState.CREATED, task.getExecutionState());
-			assertFalse(task.isCanceledOrFailed());
-			assertNull(task.getFailureCause());
-			
-			task.registerExecutionListener(listenerGateway);
-			
-			// go into the run method. we should switch to DEPLOYING, RUNNING, then
-			// FINISHED, and all should be good
-			task.run();
-			
-			// verify final state
-			assertEquals(ExecutionState.FINISHED, task.getExecutionState());
-			assertFalse(task.isCanceledOrFailed());
-			assertNull(task.getFailureCause());
-			
-			// verify listener messages
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateListenerMessage(ExecutionState.FINISHED, task, false);
-			
-			// make sure that the TaskManager received an message to unregister the task
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+	public void testRegularExecution() throws InterruptedException {
+		Task task = createTask(TestInvokableCorrect.class);
+		
+		// task should be new and perfect
+		assertEquals(ExecutionState.CREATED, task.getExecutionState());
+		assertFalse(task.isCanceledOrFailed());
+		assertNull(task.getFailureCause());
+		
+		task.registerExecutionListener(listenerGateway);
+		
+		// go into the run method. we should switch to DEPLOYING, RUNNING, then
+		// FINISHED, and all should be good
+		task.run();
+		
+		// verify final state
+		assertEquals(ExecutionState.FINISHED, task.getExecutionState());
+		assertFalse(task.isCanceledOrFailed());
+		assertNull(task.getFailureCause());
+		
+		// verify listener messages
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateListenerMessage(ExecutionState.FINISHED, task, false);
+		
+		// make sure that the TaskManager received an message to unregister the task
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
 	}
 
 	@Test
-	public void testCancelRightAway() {
-		try {
-			Task task = createTask(TestInvokableCorrect.class);
-			task.cancelExecution();
+	public void testCancelRightAway() throws InterruptedException {
+		Task task = createTask(TestInvokableCorrect.class);
+		task.cancelExecution();
 
-			assertEquals(ExecutionState.CANCELING, task.getExecutionState());
-			
-			task.run();
+		assertEquals(ExecutionState.CANCELING, task.getExecutionState());
+		
+		task.run();
 
-			// verify final state
-			assertEquals(ExecutionState.CANCELED, task.getExecutionState());
-			validateUnregisterTask(task.getExecutionId());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		// verify final state
+		assertEquals(ExecutionState.CANCELED, task.getExecutionState());
+		validateUnregisterTask(task.getExecutionId());
 	}
 
 	@Test
-	public void testFailExternallyRightAway() {
-		try {
-			Task task = createTask(TestInvokableCorrect.class);
-			task.failExternally(new Exception("fail externally"));
+	public void testFailExternallyRightAway() throws InterruptedException {
+		Task task = createTask(TestInvokableCorrect.class);
+		task.failExternally(new Exception("fail externally"));
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
 
-			task.run();
+		task.run();
 
-			// verify final state
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			validateUnregisterTask(task.getExecutionId());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		// verify final state
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		validateUnregisterTask(task.getExecutionId());
 	}
 
 	@Test
-	public void testLibraryCacheRegistrationFailed() {
-		try {
-			Task task = createTask(TestInvokableCorrect.class, mock(LibraryCacheManager.class));
+	public void testLibraryCacheRegistrationFailed() throws InterruptedException {
+		Task task = createTask(TestInvokableCorrect.class, mock(LibraryCacheManager.class));
 
-			// task should be new and perfect
-			assertEquals(ExecutionState.CREATED, task.getExecutionState());
-			assertFalse(task.isCanceledOrFailed());
-			assertNull(task.getFailureCause());
+		// task should be new and perfect
+		assertEquals(ExecutionState.CREATED, task.getExecutionState());
+		assertFalse(task.isCanceledOrFailed());
+		assertNull(task.getFailureCause());
 
-			task.registerExecutionListener(listenerGateway);
+		task.registerExecutionListener(listenerGateway);
 
-			// should fail
-			task.run();
+		// should fail
+		task.run();
 
-			// verify final state
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertNotNull(task.getFailureCause());
-			assertTrue(task.getFailureCause().getMessage().contains("classloader"));
+		// verify final state
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertNotNull(task.getFailureCause());
+		assertTrue(task.getFailureCause().getMessage().contains("classloader"));
 
-			// verify listener messages
-			validateListenerMessage(ExecutionState.FAILED, task, true);
+		// verify listener messages
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 
-			// make sure that the TaskManager received an message to unregister the task
-			validateUnregisterTask(task.getExecutionId());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		// make sure that the TaskManager received an message to unregister the task
+		validateUnregisterTask(task.getExecutionId());
 	}
 
 	@Test
-	public void testExecutionFailsInNetworkRegistration() {
-		try {
-			// mock a working library cache
-			LibraryCacheManager libCache = mock(LibraryCacheManager.class);
-			when(libCache.getClassLoader(any(JobID.class))).thenReturn(getClass().getClassLoader());
-			
-			// mock a network manager that rejects registration
-			ResultPartitionManager partitionManager = mock(ResultPartitionManager.class);
-			ResultPartitionConsumableNotifier consumableNotifier = mock(ResultPartitionConsumableNotifier.class);
-			NetworkEnvironment network = mock(NetworkEnvironment.class);
-			when(network.getPartitionManager()).thenReturn(partitionManager);
-			when(network.getPartitionConsumableNotifier()).thenReturn(consumableNotifier);
-			when(network.getDefaultIOMode()).thenReturn(IOManager.IOMode.SYNC);
-			doThrow(new RuntimeException("buffers")).when(network).registerTask(any(Task.class));
-			
-			Task task = createTask(TestInvokableCorrect.class, libCache, network);
+	public void testExecutionFailsInNetworkRegistration() throws IOException, InterruptedException {
+		// mock a working library cache
+		LibraryCacheManager libCache = mock(LibraryCacheManager.class);
+		when(libCache.getClassLoader(any(JobID.class))).thenReturn(getClass().getClassLoader());
+		
+		// mock a network manager that rejects registration
+		ResultPartitionManager partitionManager = mock(ResultPartitionManager.class);
+		ResultPartitionConsumableNotifier consumableNotifier = mock(ResultPartitionConsumableNotifier.class);
+		NetworkEnvironment network = mock(NetworkEnvironment.class);
+		when(network.getPartitionManager()).thenReturn(partitionManager);
+		when(network.getPartitionConsumableNotifier()).thenReturn(consumableNotifier);
+		when(network.getDefaultIOMode()).thenReturn(IOManager.IOMode.SYNC);
+		doThrow(new RuntimeException("buffers")).when(network).registerTask(any(Task.class));
+		
+		Task task = createTask(TestInvokableCorrect.class, libCache, network);
 
-			task.registerExecutionListener(listenerGateway);
+		task.registerExecutionListener(listenerGateway);
 
-			task.run();
+		task.run();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("buffers"));
-			
-			validateUnregisterTask(task.getExecutionId());
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("buffers"));
+		
+		validateUnregisterTask(task.getExecutionId());
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 
 	@Test
-	public void testInvokableInstantiationFailed() {
-		try {
-			Task task = createTask(InvokableNonInstantiable.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testInvokableInstantiationFailed() throws InterruptedException {
+		Task task = createTask(InvokableNonInstantiable.class);
+		task.registerExecutionListener(listenerGateway);
 
-			task.run();
+		task.run();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("instantiate"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("instantiate"));
 
-			validateUnregisterTask(task.getExecutionId());
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateUnregisterTask(task.getExecutionId());
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 	
 	@Test
-	public void testExecutionFailsInRegisterInputOutput() {
-		try {
-			Task task = createTask(InvokableWithExceptionInRegisterInOut.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testExecutionFailsInRegisterInputOutput() throws InterruptedException {
+		Task task = createTask(InvokableWithExceptionInRegisterInOut.class);
+		task.registerExecutionListener(listenerGateway);
 
-			task.run();
+		task.run();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("registerInputOutput"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("registerInputOutput"));
 
-			validateUnregisterTask(task.getExecutionId());
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateUnregisterTask(task.getExecutionId());
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 	
 	@Test
-	public void testExecutionFailsInInvoke() {
-		try {
-			Task task = createTask(InvokableWithExceptionInInvoke.class);
-			task.registerExecutionListener(listenerGateway);
-			
-			task.run();
+	public void testExecutionFailsInInvoke() throws InterruptedException {
+		Task task = createTask(InvokableWithExceptionInInvoke.class);
+		task.registerExecutionListener(listenerGateway);
+		
+		task.run();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("test"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("test"));
 
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
-			
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
+		
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 	
 	@Test
-	public void testCancelDuringRegisterInputOutput() {
-		try {
-			Task task = createTask(InvokableBlockingInRegisterInOut.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testCancelDuringRegisterInputOutput() throws InterruptedException {
+		Task task = createTask(InvokableBlockingInRegisterInOut.class);
+		task.registerExecutionListener(listenerGateway);
 
-			// run the task asynchronous
-			task.startTaskThread();
-			
-			// wait till the task is in regInOut
-			awaitLatch.await();
-			
-			task.cancelExecution();
-			assertEquals(ExecutionState.CANCELING, task.getExecutionState());
-			triggerLatch.trigger();
-			
-			task.getExecutingThread().join();
+		// run the task asynchronous
+		task.startTaskThread();
+		
+		// wait till the task is in regInOut
+		awaitLatch.await();
+		
+		task.cancelExecution();
+		assertEquals(ExecutionState.CANCELING, task.getExecutionState());
+		triggerLatch.trigger();
+		
+		task.getExecutingThread().join();
 
-			assertEquals(ExecutionState.CANCELED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertNull(task.getFailureCause());
-			
-			validateUnregisterTask(task.getExecutionId());
-			validateCancelingAndCanceledListenerMessage(task);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		assertEquals(ExecutionState.CANCELED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertNull(task.getFailureCause());
+		
+		validateUnregisterTask(task.getExecutionId());
+		validateCancelingAndCanceledListenerMessage(task);
 	}
 
 	@Test
-	public void testFailDuringRegisterInputOutput() {
-		try {
-			Task task = createTask(InvokableBlockingInRegisterInOut.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testFailDuringRegisterInputOutput() throws InterruptedException {
+		Task task = createTask(InvokableBlockingInRegisterInOut.class);
+		task.registerExecutionListener(listenerGateway);
 
-			// run the task asynchronous
-			task.startTaskThread();
+		// run the task asynchronous
+		task.startTaskThread();
 
-			// wait till the task is in regInOut
-			awaitLatch.await();
+		// wait till the task is in regInOut
+		awaitLatch.await();
 
-			task.failExternally(new Exception("test"));
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			triggerLatch.trigger();
+		task.failExternally(new Exception("test"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		triggerLatch.trigger();
 
-			task.getExecutingThread().join();
+		task.getExecutingThread().join();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("test"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("test"));
 
-			validateUnregisterTask(task.getExecutionId());
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateUnregisterTask(task.getExecutionId());
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 
 	@Test
-	public void testCancelDuringInvoke() {
-		try {
-			Task task = createTask(InvokableBlockingInInvoke.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testCancelDuringInvoke() throws InterruptedException {
+		Task task = createTask(InvokableBlockingInInvoke.class);
+		task.registerExecutionListener(listenerGateway);
 
-			// run the task asynchronous
-			task.startTaskThread();
+		// run the task asynchronous
+		task.startTaskThread();
 
-			// wait till the task is in invoke
-			awaitLatch.await();
+		// wait till the task is in invoke
+		awaitLatch.await();
 
-			task.cancelExecution();
-			assertTrue(task.getExecutionState() == ExecutionState.CANCELING ||
-					task.getExecutionState() == ExecutionState.CANCELED);
+		task.cancelExecution();
+		assertTrue(task.getExecutionState() == ExecutionState.CANCELING ||
+				task.getExecutionState() == ExecutionState.CANCELED);
 
-			task.getExecutingThread().join();
+		task.getExecutingThread().join();
 
-			assertEquals(ExecutionState.CANCELED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertNull(task.getFailureCause());
+		assertEquals(ExecutionState.CANCELED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertNull(task.getFailureCause());
 
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
-			
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateCancelingAndCanceledListenerMessage(task);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
+		
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateCancelingAndCanceledListenerMessage(task);
 	}
 
 	@Test
-	public void testFailExternallyDuringInvoke() {
-		try {
-			Task task = createTask(InvokableBlockingInInvoke.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testFailExternallyDuringInvoke() throws InterruptedException {
+		Task task = createTask(InvokableBlockingInInvoke.class);
+		task.registerExecutionListener(listenerGateway);
 
-			// run the task asynchronous
-			task.startTaskThread();
+		// run the task asynchronous
+		task.startTaskThread();
 
-			// wait till the task is in regInOut
-			awaitLatch.await();
+		// wait till the task is in regInOut
+		awaitLatch.await();
 
-			task.failExternally(new Exception("test"));
-			assertTrue(task.getExecutionState() == ExecutionState.FAILED);
+		task.failExternally(new Exception("test"));
+		assertTrue(task.getExecutionState() == ExecutionState.FAILED);
 
-			task.getExecutingThread().join();
+		task.getExecutingThread().join();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("test"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("test"));
 
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
 
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 
 	@Test
-	public void testCanceledAfterExecutionFailedInRegInOut() {
-		try {
-			Task task = createTask(InvokableWithExceptionInRegisterInOut.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testCanceledAfterExecutionFailedInRegInOut() throws InterruptedException {
+		Task task = createTask(InvokableWithExceptionInRegisterInOut.class);
+		task.registerExecutionListener(listenerGateway);
 
-			task.run();
-			
-			// this should not overwrite the failure state
-			task.cancelExecution();
+		task.run();
+		
+		// this should not overwrite the failure state
+		task.cancelExecution();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("registerInputOutput"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("registerInputOutput"));
 
-			validateUnregisterTask(task.getExecutionId());
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateUnregisterTask(task.getExecutionId());
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 
 	@Test
-	public void testCanceledAfterExecutionFailedInInvoke() {
-		try {
-			Task task = createTask(InvokableWithExceptionInInvoke.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testCanceledAfterExecutionFailedInInvoke() throws InterruptedException {
+		Task task = createTask(InvokableWithExceptionInInvoke.class);
+		task.registerExecutionListener(listenerGateway);
 
-			task.run();
+		task.run();
 
-			// this should not overwrite the failure state
-			task.cancelExecution();
+		// this should not overwrite the failure state
+		task.cancelExecution();
 
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("test"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("test"));
 
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
-			
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
+		
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 	
 	@Test
-	public void testExecutionFailesAfterCanceling() {
-		try {
-			Task task = createTask(InvokableWithExceptionOnTrigger.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testExecutionFailesAfterCanceling() throws InterruptedException {
+		Task task = createTask(InvokableWithExceptionOnTrigger.class);
+		task.registerExecutionListener(listenerGateway);
 
-			// run the task asynchronous
-			task.startTaskThread();
+		// run the task asynchronous
+		task.startTaskThread();
 
-			// wait till the task is in invoke
-			awaitLatch.await();
+		// wait till the task is in invoke
+		awaitLatch.await();
 
-			task.cancelExecution();
-			assertEquals(ExecutionState.CANCELING, task.getExecutionState());
-			
-			// this causes an exception
-			triggerLatch.trigger();
+		task.cancelExecution();
+		assertEquals(ExecutionState.CANCELING, task.getExecutionState());
+		
+		// this causes an exception
+		triggerLatch.trigger();
 
-			task.getExecutingThread().join();
+		task.getExecutingThread().join();
 
-			// we should still be in state canceled
-			assertEquals(ExecutionState.CANCELED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertNull(task.getFailureCause());
-			
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
+		// we should still be in state canceled
+		assertEquals(ExecutionState.CANCELED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertNull(task.getFailureCause());
+		
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
 
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateCancelingAndCanceledListenerMessage(task);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateCancelingAndCanceledListenerMessage(task);
 	}
 
 	@Test
-	public void testExecutionFailsAfterTaskMarkedFailed() {
-		try {
-			Task task = createTask(InvokableWithExceptionOnTrigger.class);
-			task.registerExecutionListener(listenerGateway);
+	public void testExecutionFailsAfterTaskMarkedFailed() throws InterruptedException {
+		Task task = createTask(InvokableWithExceptionOnTrigger.class);
+		task.registerExecutionListener(listenerGateway);
 
-			// run the task asynchronous
-			task.startTaskThread();
+		// run the task asynchronous
+		task.startTaskThread();
 
-			// wait till the task is in invoke
-			awaitLatch.await();
+		// wait till the task is in invoke
+		awaitLatch.await();
 
-			task.failExternally(new Exception("external"));
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		task.failExternally(new Exception("external"));
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
 
-			// this causes an exception
-			triggerLatch.trigger();
+		// this causes an exception
+		triggerLatch.trigger();
 
-			task.getExecutingThread().join();
-			
-			assertEquals(ExecutionState.FAILED, task.getExecutionState());
-			assertTrue(task.isCanceledOrFailed());
-			assertTrue(task.getFailureCause().getMessage().contains("external"));
-			
-			validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
-			validateUnregisterTask(task.getExecutionId());
+		task.getExecutingThread().join();
+		
+		assertEquals(ExecutionState.FAILED, task.getExecutionState());
+		assertTrue(task.isCanceledOrFailed());
+		assertTrue(task.getFailureCause().getMessage().contains("external"));
+		
+		validateTaskManagerStateChange(ExecutionState.RUNNING, task, false);
+		validateUnregisterTask(task.getExecutionId());
 
-			validateListenerMessage(ExecutionState.RUNNING, task, false);
-			validateListenerMessage(ExecutionState.FAILED, task, true);
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
-		}
+		validateListenerMessage(ExecutionState.RUNNING, task, false);
+		validateListenerMessage(ExecutionState.FAILED, task, true);
 	}
 
 	@Test
@@ -746,119 +650,99 @@ public class TaskTest {
 	// Validation Methods
 	// ------------------------------------------------------------------------
 	
-	private void validateUnregisterTask(ExecutionAttemptID id) {
-		try {
-			// we may have to wait for a bit to give the actors time to receive the message
-			// and put it into the queue
-			Object rawMessage = taskManagerMessages.take();
-			
-			assertNotNull("There is no additional TaskManager message", rawMessage);
-			if (!(rawMessage instanceof TaskMessages.TaskInFinalState)) {
-				fail("TaskManager message is not 'UnregisterTask', but " + rawMessage.getClass());
-			}
-			
-			TaskMessages.TaskInFinalState message = (TaskMessages.TaskInFinalState) rawMessage;
-			assertEquals(id, message.executionID());
+	private void validateUnregisterTask(ExecutionAttemptID id) throws InterruptedException {
+		// we may have to wait for a bit to give the actors time to receive the message
+		// and put it into the queue
+		Object rawMessage = taskManagerMessages.take();
+		
+		assertNotNull("There is no additional TaskManager message", rawMessage);
+		if (!(rawMessage instanceof TaskMessages.TaskInFinalState)) {
+			fail("TaskManager message is not 'UnregisterTask', but " + rawMessage.getClass());
 		}
-		catch (InterruptedException e) {
-			fail("interrupted");
-		}
+		
+		TaskMessages.TaskInFinalState message = (TaskMessages.TaskInFinalState) rawMessage;
+		assertEquals(id, message.executionID());
 	}
 
-	private void validateTaskManagerStateChange(ExecutionState state, Task task, boolean hasError) {
-		try {
-			// we may have to wait for a bit to give the actors time to receive the message
-			// and put it into the queue
-			Object rawMessage = taskManagerMessages.take();
+	private void validateTaskManagerStateChange(ExecutionState state, Task task, boolean hasError) throws InterruptedException {
+		// we may have to wait for a bit to give the actors time to receive the message
+		// and put it into the queue
+		Object rawMessage = taskManagerMessages.take();
 
-			assertNotNull("There is no additional TaskManager message", rawMessage);
-			if (!(rawMessage instanceof TaskMessages.UpdateTaskExecutionState)) {
-				fail("TaskManager message is not 'UpdateTaskExecutionState', but " + rawMessage.getClass());
-			}
-			
-			TaskMessages.UpdateTaskExecutionState message =
-					(TaskMessages.UpdateTaskExecutionState) rawMessage;
-			
-			TaskExecutionState taskState =  message.taskExecutionState();
-
-			assertEquals(task.getJobID(), taskState.getJobID());
-			assertEquals(task.getExecutionId(), taskState.getID());
-			assertEquals(state, taskState.getExecutionState());
-
-			if (hasError) {
-				assertNotNull(taskState.getError(getClass().getClassLoader()));
-			} else {
-				assertNull(taskState.getError(getClass().getClassLoader()));
-			}
+		assertNotNull("There is no additional TaskManager message", rawMessage);
+		if (!(rawMessage instanceof TaskMessages.UpdateTaskExecutionState)) {
+			fail("TaskManager message is not 'UpdateTaskExecutionState', but " + rawMessage.getClass());
 		}
-		catch (InterruptedException e) {
-			fail("interrupted");
+		
+		TaskMessages.UpdateTaskExecutionState message =
+				(TaskMessages.UpdateTaskExecutionState) rawMessage;
+		
+		TaskExecutionState taskState =  message.taskExecutionState();
+
+		assertEquals(task.getJobID(), taskState.getJobID());
+		assertEquals(task.getExecutionId(), taskState.getID());
+		assertEquals(state, taskState.getExecutionState());
+
+		if (hasError) {
+			assertNotNull(taskState.getError(getClass().getClassLoader()));
+		} else {
+			assertNull(taskState.getError(getClass().getClassLoader()));
 		}
 	}
 	
-	private void validateListenerMessage(ExecutionState state, Task task, boolean hasError) {
-		try {
-			// we may have to wait for a bit to give the actors time to receive the message
-			// and put it into the queue
-			TaskMessages.UpdateTaskExecutionState message =
-					(TaskMessages.UpdateTaskExecutionState) listenerMessages.take();
-			assertNotNull("There is no additional listener message", message);
-			
-			TaskExecutionState taskState =  message.taskExecutionState();
+	private void validateListenerMessage(ExecutionState state, Task task, boolean hasError) throws InterruptedException {
+		// we may have to wait for a bit to give the actors time to receive the message
+		// and put it into the queue
+		TaskMessages.UpdateTaskExecutionState message =
+				(TaskMessages.UpdateTaskExecutionState) listenerMessages.take();
+		assertNotNull("There is no additional listener message", message);
 
-			assertEquals(task.getJobID(), taskState.getJobID());
-			assertEquals(task.getExecutionId(), taskState.getID());
-			assertEquals(state, taskState.getExecutionState());
-			
-			if (hasError) {
-				assertNotNull(taskState.getError(getClass().getClassLoader()));
-			} else {
-				assertNull(taskState.getError(getClass().getClassLoader()));
-			}
-		}
-		catch (InterruptedException e) {
-			fail("interrupted");
+		TaskExecutionState taskState =  message.taskExecutionState();
+
+		assertEquals(task.getJobID(), taskState.getJobID());
+		assertEquals(task.getExecutionId(), taskState.getID());
+		assertEquals(state, taskState.getExecutionState());
+		
+		if (hasError) {
+			assertNotNull(taskState.getError(getClass().getClassLoader()));
+		} else {
+			assertNull(taskState.getError(getClass().getClassLoader()));
 		}
 	}
 
-	private void validateCancelingAndCanceledListenerMessage(Task task) {
-		try {
-			// we may have to wait for a bit to give the actors time to receive the message
-			// and put it into the queue
-			TaskMessages.UpdateTaskExecutionState message1 =
-					(TaskMessages.UpdateTaskExecutionState) listenerMessages.take();
-			TaskMessages.UpdateTaskExecutionState message2 =
-					(TaskMessages.UpdateTaskExecutionState) listenerMessages.take();
-			
-			
-			assertNotNull("There is no additional listener message", message1);
-			assertNotNull("There is no additional listener message", message2);
+	private void validateCancelingAndCanceledListenerMessage(Task task) throws InterruptedException {
+		// we may have to wait for a bit to give the actors time to receive the message
+		// and put it into the queue
+		TaskMessages.UpdateTaskExecutionState message1 =
+				(TaskMessages.UpdateTaskExecutionState) listenerMessages.take();
+		TaskMessages.UpdateTaskExecutionState message2 =
+				(TaskMessages.UpdateTaskExecutionState) listenerMessages.take();
+		
+		
+		assertNotNull("There is no additional listener message", message1);
+		assertNotNull("There is no additional listener message", message2);
 
-			TaskExecutionState taskState1 =  message1.taskExecutionState();
-			TaskExecutionState taskState2 =  message2.taskExecutionState();
+		TaskExecutionState taskState1 =  message1.taskExecutionState();
+		TaskExecutionState taskState2 =  message2.taskExecutionState();
 
-			assertEquals(task.getJobID(), taskState1.getJobID());
-			assertEquals(task.getJobID(), taskState2.getJobID());
-			assertEquals(task.getExecutionId(), taskState1.getID());
-			assertEquals(task.getExecutionId(), taskState2.getID());
-			
-			ExecutionState state1 = taskState1.getExecutionState();
-			ExecutionState state2 = taskState2.getExecutionState();
-			
-			// it may be (very rarely) that the following race happens:
-			//  - OUTSIDE THREAD: call to cancel()
-			//  - OUTSIDE THREAD: atomic state change from running to canceling
-			//  - TASK THREAD: finishes, atomic change from canceling to canceled
-			//  - TASK THREAD: send notification that state is canceled
-			//  - OUTSIDE THREAD: send notification that state is canceling
-			
-			// for that reason, we allow the notification messages in any order.
-			assertTrue( (state1 == ExecutionState.CANCELING && state2 == ExecutionState.CANCELED) ||
-						(state2 == ExecutionState.CANCELING && state1 == ExecutionState.CANCELED));
-		}
-		catch (InterruptedException e) {
-			fail("interrupted");
-		}
+		assertEquals(task.getJobID(), taskState1.getJobID());
+		assertEquals(task.getJobID(), taskState2.getJobID());
+		assertEquals(task.getExecutionId(), taskState1.getID());
+		assertEquals(task.getExecutionId(), taskState2.getID());
+		
+		ExecutionState state1 = taskState1.getExecutionState();
+		ExecutionState state2 = taskState2.getExecutionState();
+		
+		// it may be (very rarely) that the following race happens:
+		//  - OUTSIDE THREAD: call to cancel()
+		//  - OUTSIDE THREAD: atomic state change from running to canceling
+		//  - TASK THREAD: finishes, atomic change from canceling to canceled
+		//  - TASK THREAD: send notification that state is canceled
+		//  - OUTSIDE THREAD: send notification that state is canceling
+		
+		// for that reason, we allow the notification messages in any order.
+		assertTrue( (state1 == ExecutionState.CANCELING && state2 == ExecutionState.CANCELED) ||
+					(state2 == ExecutionState.CANCELING && state1 == ExecutionState.CANCELED));
 	}
 	
 	// --------------------------------------------------------------------------------------------

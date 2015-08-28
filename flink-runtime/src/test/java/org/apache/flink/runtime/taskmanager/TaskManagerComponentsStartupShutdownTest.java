@@ -25,6 +25,7 @@ import akka.actor.ActorSystem;
 import akka.actor.Kill;
 import akka.actor.Props;
 import akka.testkit.JavaTestKit;
+
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.memory.MemoryType;
@@ -39,25 +40,28 @@ import org.apache.flink.runtime.jobmanager.JobManager;
 import org.apache.flink.runtime.leaderretrieval.LeaderRetrievalService;
 import org.apache.flink.runtime.leaderretrieval.StandaloneLeaderRetrievalService;
 import org.apache.flink.runtime.memory.MemoryManager;
-
 import org.apache.flink.runtime.messages.TaskManagerMessages;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
+
 import org.junit.Test;
+
 import scala.Option;
 import scala.Tuple2;
 import scala.concurrent.duration.FiniteDuration;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 
-public class TaskManagerComponentsStartupShutdownTest {
+public class TaskManagerComponentsStartupShutdownTest extends TestLogger {
 
 	/**
 	 * Makes sure that all components are shut down when the TaskManager
 	 * actor is shut down.
 	 */
 	@Test
-	public void testComponentsStartupShutdown() {
+	public void testComponentsStartupShutdown() throws IOException {
 
 		final String[] TMP_DIR = new String[] { ConfigConstants.DEFAULT_TASK_MANAGER_TMP_PATH };
 		final FiniteDuration timeout = new FiniteDuration(100, TimeUnit.SECONDS);
@@ -147,10 +151,6 @@ public class TaskManagerComponentsStartupShutdownTest {
 			assertTrue(network.isShutdown());
 			assertTrue(ioManager.isProperlyShutDown());
 			assertTrue(memManager.isShutdown());
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
 		}
 		finally {
 			if (actorSystem != null) {

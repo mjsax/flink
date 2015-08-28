@@ -26,10 +26,10 @@ import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.StreamingMode;
 import org.apache.flink.runtime.akka.AkkaUtils;
-
 import org.apache.flink.runtime.jobmanager.JobManager;
 import org.apache.flink.runtime.net.NetUtils;
 import org.apache.flink.runtime.testutils.CommonTestUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import scala.Some;
@@ -46,7 +46,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
 import static org.apache.flink.runtime.testutils.CommonTestUtils.getCurrentClasspath;
 import static org.apache.flink.runtime.testutils.CommonTestUtils.getJavaCommandPath;
 import static org.apache.flink.runtime.testutils.CommonTestUtils.isProcessAlive;
@@ -54,10 +53,10 @@ import static org.apache.flink.runtime.testutils.CommonTestUtils.isProcessAlive;
 /**
  * Tests that the TaskManager process properly exits when the TaskManager actor dies.
  */
-public class TaskManagerProcessReapingTest {
+public class TaskManagerProcessReapingTest extends TestLogger {
 
 	@Test
-	public void testReapProcessOnFailure() {
+	public void testReapProcessOnFailure() throws Throwable {
 		Process taskManagerProcess = null;
 		ActorSystem jmActorSystem = null;
 
@@ -157,13 +156,7 @@ public class TaskManagerProcessReapingTest {
 			assertEquals("TaskManager died, but not because of the process reaper",
 					TaskManager.RUNTIME_FAILURE_RETURN_CODE(), returnCode);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			printProcessLog(processOutput.toString());
-			fail(e.getMessage());
-		}
-		catch (Error e) {
-			e.printStackTrace();
+		catch (Throwable e) {
 			printProcessLog(processOutput.toString());
 			throw e;
 		}
