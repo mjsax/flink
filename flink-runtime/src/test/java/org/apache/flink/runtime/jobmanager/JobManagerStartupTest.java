@@ -31,8 +31,8 @@ import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.StreamingMode;
 import org.apache.flink.runtime.net.NetUtils;
-
 import org.apache.flink.util.OperatingSystem;
+import org.apache.flink.util.TestLogger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +41,7 @@ import org.junit.Test;
  * Tests that verify the startup behavior of the JobManager in failure
  * situations, when the JobManager cannot be started.
  */
-public class JobManagerStartupTest {
+public class JobManagerStartupTest extends TestLogger {
 
 	private final static String DOES_NOT_EXISTS_NO_SIR = "does-not-exist-no-sir";
 
@@ -92,8 +92,7 @@ public class JobManagerStartupTest {
 		catch (Exception e) {
 			// expected
 			if(!e.getMessage().contains("Address already in use")) {
-				e.printStackTrace();
-				fail("Received wrong exception");
+				throw e;
 			}
 		}
 		finally {
@@ -110,7 +109,7 @@ public class JobManagerStartupTest {
 	 * Verifies that the JobManager fails fast (and with expressive error message)
 	 * when one of its components (here the BLOB server) fails to start properly.
 	 */
-	@Test
+	@Test(expected = Exception.class)
 	public void testJobManagerStartupFails() {
 		final int portNum;
 		try {
@@ -124,13 +123,7 @@ public class JobManagerStartupTest {
 		String nonExistDirectory = new File(blobStorageDirectory, DOES_NOT_EXISTS_NO_SIR).getAbsolutePath();
 		failConfig.setString(ConfigConstants.BLOB_STORAGE_DIRECTORY_KEY, nonExistDirectory);
 
-		try {
-			JobManager.runJobManager(failConfig, JobManagerMode.CLUSTER,
-										StreamingMode.BATCH_ONLY, "localhost", portNum);
-			fail("this should fail with an exception");
-		}
-		catch (Exception e) {
-			// expected
-		}
+		JobManager.runJobManager(failConfig, JobManagerMode.CLUSTER,
+									StreamingMode.BATCH_ONLY, "localhost", portNum);
 	}
 }

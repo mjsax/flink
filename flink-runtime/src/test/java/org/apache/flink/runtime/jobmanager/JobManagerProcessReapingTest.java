@@ -22,17 +22,18 @@ import static org.junit.Assert.*;
 import static org.apache.flink.runtime.testutils.CommonTestUtils.getCurrentClasspath;
 import static org.apache.flink.runtime.testutils.CommonTestUtils.getJavaCommandPath;
 import static org.apache.flink.runtime.testutils.CommonTestUtils.isProcessAlive;
-
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.PoisonPill;
+
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.runtime.StreamingMode;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.testutils.CommonTestUtils;
+import org.apache.flink.util.TestLogger;
 import org.junit.Test;
-
 import org.apache.flink.configuration.Configuration;
+
 import scala.Some;
 import scala.Tuple2;
 import scala.concurrent.duration.FiniteDuration;
@@ -49,10 +50,10 @@ import java.util.regex.Pattern;
 /**
  * Tests that the JobManager process properly exits when the JobManager actor dies.
  */
-public class JobManagerProcessReapingTest {
+public class JobManagerProcessReapingTest extends TestLogger {
 
 	@Test
-	public void testReapProcessOnFailure() {
+	public void testReapProcessOnFailure() throws Throwable {
 		Process jmProcess = null;
 		ActorSystem localSystem = null;
 
@@ -159,13 +160,7 @@ public class JobManagerProcessReapingTest {
 			assertEquals("JobManager died, but not because of the process reaper",
 					JobManager.RUNTIME_FAILURE_RETURN_CODE(), returnCode);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			printProcessLog(processOutput.toString());
-			fail(e.getMessage());
-		}
-		catch (Error e) {
-			e.printStackTrace();
+		catch (Throwable e) {
 			printProcessLog(processOutput.toString());
 			throw e;
 		}

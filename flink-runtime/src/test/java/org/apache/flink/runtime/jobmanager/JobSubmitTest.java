@@ -20,7 +20,6 @@ package org.apache.flink.runtime.jobmanager;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import akka.pattern.Patterns;
 
 import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.ConfigConstants;
@@ -38,6 +37,8 @@ import org.apache.flink.runtime.leaderretrieval.LeaderRetrievalService;
 import org.apache.flink.runtime.messages.JobManagerMessages;
 import org.apache.flink.runtime.net.NetUtils;
 import org.apache.flink.runtime.util.LeaderRetrievalUtils;
+import org.apache.flink.util.TestLogger;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,13 +53,12 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Tests that the JobManager handles Jobs correctly that fail in
  * the initialization during the submit phase.
  */
-public class JobSubmitTest {
+public class JobSubmitTest extends TestLogger {
 
 	private static final FiniteDuration timeout = new FiniteDuration(5000, TimeUnit.MILLISECONDS);
 
@@ -66,7 +66,7 @@ public class JobSubmitTest {
 	private static ActorGateway jmGateway;
 
 	@BeforeClass
-	public static void setupJobManager() {
+	public static void setupJobManager() throws Exception {
 		Configuration config = new Configuration();
 
 		int port = NetUtils.getAvailablePort();
@@ -76,22 +76,18 @@ public class JobSubmitTest {
 
 		scala.Option<Tuple2<String, Object>> listeningAddress = scala.Option.apply(new Tuple2<String, Object>("localhost", port));
 		jobManagerSystem = AkkaUtils.createActorSystem(config, listeningAddress);
-		ActorRef jobManagerActorRef = JobManager.startJobManagerActors(
+		JobManager.startJobManagerActors(
 				config,
 				jobManagerSystem,
 				StreamingMode.BATCH_ONLY)._1();
 
-		try {
-			LeaderRetrievalService lrs = LeaderRetrievalUtils.createLeaderRetrievalService(config);
+		LeaderRetrievalService lrs = LeaderRetrievalUtils.createLeaderRetrievalService(config);
 
-			jmGateway = LeaderRetrievalUtils.retrieveLeaderGateway(
-					lrs,
-					jobManagerSystem,
-					timeout
-			);
-		} catch (Exception e) {
-			fail("Could not retrieve the JobManager gateway. " + e.getMessage());
-		}
+		jmGateway = LeaderRetrievalUtils.retrieveLeaderGateway(
+				lrs,
+				jobManagerSystem,
+				timeout
+		);
 	}
 
 	@AfterClass
@@ -102,54 +98,45 @@ public class JobSubmitTest {
 	}
 
 	@Test
-	public void testFailureWhenJarBlobsMissing() {
+	public void testFailureWhenJarBlobsMissing() throws Exception {
+		// create a simple job graph
+		JobVertex jobVertex = new JobVertex("Test Vertex");
+		jobVertex.setInvokableClass(Tasks.NoOpInvokable.class);
+		JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
+
+		// request the blob port from the job manager
+		Future<Object> future = jmGateway.ask(JobManagerMessages.getRequestBlobManagerPort(), timeout);
+		int blobPort = (Integer) Await.result(future, timeout);
+
+		// upload two dummy bytes and add their keys to the job graph as dependencies
+		BlobKey key1, key2;
+		BlobClient bc = new BlobClient(new InetSocketAddress("localhost", blobPort));
 		try {
-			// create a simple job graph
-			JobVertex jobVertex = new JobVertex("Test Vertex");
-			jobVertex.setInvokableClass(Tasks.NoOpInvokable.class);
-			JobGraph jg = new JobGraph("test job", JobType.BATCHING, jobVertex);
+			key1 = bc.put(new byte[10]);
+			key2 = bc.put(new byte[10]);
 
-			// request the blob port from the job manager
-			Future<Object> future = jmGateway.ask(JobManagerMessages.getRequestBlobManagerPort(), timeout);
-			int blobPort = (Integer) Await.result(future, timeout);
-
-			// upload two dummy bytes and add their keys to the job graph as dependencies
-			BlobKey key1, key2;
-			BlobClient bc = new BlobClient(new InetSocketAddress("localhost", blobPort));
-			try {
-				key1 = bc.put(new byte[10]);
-				key2 = bc.put(new byte[10]);
-
-				// delete one of the blobs to make sure that the startup failed
-				bc.delete(key2);
-			}
-			finally {
-				bc.close();
-			}
-
-			jg.addBlob(key1);
-			jg.addBlob(key2);
-
-			// submit the job
-			Future<Object> submitFuture = jmGateway.ask(
-					new JobManagerMessages.SubmitJob(
-							jg,
-							ListeningBehaviour.EXECUTION_RESULT),
-					timeout);
-			try {
-				Await.result(submitFuture, timeout);
-			}
-			catch (JobExecutionException e) {
-				// that is what we expect
-				assertTrue(e.getCause() instanceof IOException);
-			}
-			catch (Exception e) {
-				fail("Wrong exception type");
-			}
+			// delete one of the blobs to make sure that the startup failed
+			bc.delete(key2);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		finally {
+			bc.close();
+		}
+
+		jg.addBlob(key1);
+		jg.addBlob(key2);
+
+		// submit the job
+		Future<Object> submitFuture = jmGateway.ask(
+				new JobManagerMessages.SubmitJob(
+						jg,
+						ListeningBehaviour.EXECUTION_RESULT),
+				timeout);
+		try {
+			Await.result(submitFuture, timeout);
+		}
+		catch (JobExecutionException e) {
+			// that is what we expect
+			assertTrue(e.getCause() instanceof IOException);
 		}
 	}
 
@@ -158,10 +145,11 @@ public class JobSubmitTest {
 	 * (input formats / output formats) fail.
 	 */
 	@Test
-	public void testFailureWhenInitializeOnMasterFails() {
+	public void testFailureWhenInitializeOnMasterFails() throws Exception {
 		try {
 			// create a simple job graph
 
+			@SuppressWarnings("serial")
 			JobVertex jobVertex = new JobVertex("Vertex that fails in initializeOnMaster") {
 
 				@Override
@@ -179,21 +167,13 @@ public class JobSubmitTest {
 							jg,
 							ListeningBehaviour.EXECUTION_RESULT),
 					timeout);
-			try {
-				Await.result(submitFuture, timeout);
-			}
-			catch (JobExecutionException e) {
-				// that is what we expect
-				// test that the exception nesting is not too deep
-				assertTrue(e.getCause() instanceof RuntimeException);
-			}
-			catch (Exception e) {
-				fail("Wrong exception type");
-			}
+
+			Await.result(submitFuture, timeout);
 		}
-		catch (Exception e) {
-			e.printStackTrace();
-			fail(e.getMessage());
+		catch (JobExecutionException e) {
+			// that is what we expect
+			// test that the exception nesting is not too deep
+			assertTrue(e.getCause() instanceof RuntimeException);
 		}
 	}
 }

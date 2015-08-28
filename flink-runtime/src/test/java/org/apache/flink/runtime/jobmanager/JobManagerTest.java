@@ -56,8 +56,9 @@ import org.apache.flink.runtime.testingUtils.TestingJobManagerMessages.Execution
 import org.apache.flink.runtime.testingUtils.TestingJobManagerMessages.RequestExecutionGraph;
 import org.apache.flink.runtime.testingUtils.TestingJobManagerMessages.WaitForAllVerticesToBeRunning;
 import org.apache.flink.runtime.testingUtils.TestingJobManagerMessages.WaitForAllVerticesToBeRunningOrFinished;
-
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.util.TestLogger;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -74,9 +75,8 @@ import static org.apache.flink.runtime.testingUtils.TestingUtils.startTestingClu
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
-public class JobManagerTest {
+public class JobManagerTest extends TestLogger {
 
 	private static ActorSystem system;
 
@@ -218,10 +218,6 @@ public class JobManagerTest {
 				assertEquals(request.partitionId().getPartitionId(), resp.partitionId());
 				assertNull(resp.state());
 			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
-			}
 			finally {
 				if (cluster != null) {
 					cluster.shutdown();
@@ -264,10 +260,6 @@ public class JobManagerTest {
 
 				// - The test ----------------------------------------------------------------------
 				expectMsgClass(StoppingSuccess.class);
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				if (cluster != null) {
@@ -314,10 +306,6 @@ public class JobManagerTest {
 
 				// - The test ----------------------------------------------------------------------
 				expectMsgClass(StoppingFailure.class);
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-				fail(e.getMessage());
 			}
 			finally {
 				if (cluster != null) {
