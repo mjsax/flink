@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobSubmissionResult;
 import org.apache.flink.api.common.accumulators.AccumulatorHelper;
-import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.Plan;
 import org.apache.flink.optimizer.CompilerException;
@@ -42,17 +41,18 @@ import org.apache.flink.optimizer.plandump.PlanJSONDumpGenerator;
 import org.apache.flink.optimizer.plantranslate.JobGraphGenerator;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.Path;
+import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.client.JobClient;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.leaderretrieval.LeaderRetrievalException;
 import org.apache.flink.runtime.leaderretrieval.LeaderRetrievalService;
-import org.apache.flink.runtime.messages.JobManagerMessages;
-import org.apache.flink.runtime.util.LeaderRetrievalUtils;
 import org.apache.flink.runtime.messages.accumulators.AccumulatorResultsErroneous;
 import org.apache.flink.runtime.messages.accumulators.AccumulatorResultsFound;
 import org.apache.flink.runtime.messages.accumulators.RequestAccumulatorResults;
+import org.apache.flink.runtime.messages.JobManagerMessages;
+import org.apache.flink.runtime.util.LeaderRetrievalUtils;
 import org.apache.flink.util.SerializedValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -452,6 +452,39 @@ public class Client {
 	}
 
 	/**
+	 * Stops a program on Flink cluster whose job-manager is configured in this client's configuration.
+	 * Stopping works only for streaming programs. Be aware, that the program might continue to run for
+	 * a while after sending the stop command, because after sources stopped to emit data all operators
+	 * need to finish processing.
+	 * 
+	 * @param jobId
+	 *            the job ID of the streaming program to stop
+	 * @throws ProgramStopException
+	 *             If the job ID is invalid (ie, is unknown or refers to a batch job) or if sending the stop signal
+	 *             failed. That might be due to an I/O problem, ie, the job-manager is unreachable.
+	 */
+	public void stop(JobID jobId) throws Exception {
+		Future<Object> response;
+		try {
+			response = jobManagerGateway.ask(new JobManagerMessages.StopJob(jobId), timeout);
+		} catch (Exception e) {
+			throw new ProgramInvocationException("Failed to query the job manager gateway.", e);
+		}
+
+		Object result = Await.result(response, timeout);
+
+		if (result instanceof JobManagerMessages.StoppingSuccess) {
+			LOG.debug("Job stopping with ID " + jobId + " succeeded.");
+		} else if (result instanceof JobManagerMessages.StoppingFailure) {
+			Throwable t = ((JobManagerMessages.StoppingFailure) result).cause();
+			LOG.debug("Job stopping with ID " + jobId + " failed.", t);
+			throw new Exception("Failed to stop the job because of \n" + t.getMessage());
+		} else {
+			throw new Exception("Unknown message received while cancelling.");
+		}
+	}
+
+	/**
 	 * Requests and returns the accumulators for the given job identifier. Accumulators can be
 	 * requested while a is running or after it has finished. The default class loader is used
 	 * to deserialize the incoming accumulator results.
@@ -497,7 +530,7 @@ public class Client {
 	// ------------------------------------------------------------------------
 	//  Sessions
 	// ------------------------------------------------------------------------
-	
+
 	/**
 	 * Tells the JobManager to finish the session (job) defined by the given ID.
 	 * 

@@ -123,6 +123,16 @@ public abstract class AbstractStormSpoutWrapper<OUT> extends RichParallelSourceF
 		this.isRunning = false;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * <p/>
+	 * Sets the {@link #isRunning} flag to {@code false}.
+	 */
+	@Override
+	public void stop() {
+		this.isRunning = false;
+	}
+
 	@Override
 	public void close() throws Exception {
 		this.spout.close();

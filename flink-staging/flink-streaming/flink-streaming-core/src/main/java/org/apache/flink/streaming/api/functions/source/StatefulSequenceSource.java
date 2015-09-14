@@ -83,4 +83,10 @@ public class StatefulSequenceSource extends RichParallelSourceFunction<Long> {
 	public void cancel() {
 		isRunning = false;
 	}
+
+	@Override
+	public void stop() {
+		isRunning = false;
+	}
+
 }

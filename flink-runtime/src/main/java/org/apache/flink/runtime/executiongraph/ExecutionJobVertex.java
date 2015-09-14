@@ -87,6 +87,8 @@ public class ExecutionJobVertex implements Serializable {
 	
 	private InputSplitAssigner splitAssigner;
 	
+	private boolean receivedStopSignal = false;
+	
 	public ExecutionJobVertex(ExecutionGraph graph, JobVertex jobVertex,
 							int defaultParallelism, FiniteDuration timeout) throws JobException {
 		this(graph, jobVertex, defaultParallelism, timeout, System.currentTimeMillis());
@@ -227,6 +229,10 @@ public class ExecutionJobVertex implements Serializable {
 		
 		return getAggregateJobVertexState(num, parallelism);
 	}
+
+	public boolean receivedStopSignal() {
+		return this.receivedStopSignal;
+	}
 	
 	//---------------------------------------------------------------------------------------------
 	
@@ -328,7 +334,11 @@ public class ExecutionJobVertex implements Serializable {
 			ev.cancel();
 		}
 	}
-	
+
+	public void setStopSignalReceived() {
+		this.receivedStopSignal = true;
+	}
+
 	public void fail(Throwable t) {
 		for (ExecutionVertex ev : getTaskVertices()) {
 			ev.fail(t);
@@ -349,6 +359,8 @@ public class ExecutionJobVertex implements Serializable {
 		}
 		
 		synchronized (stateMonitor) {
+			this.receivedStopSignal = false;
+			
 			// check and reset the sharing groups with scheduler hints
 			if (slotSharingGroup != null) {
 				slotSharingGroup.clearTaskAssignment();

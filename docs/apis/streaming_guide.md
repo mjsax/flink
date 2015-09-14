@@ -348,7 +348,7 @@ after creation by using `source.setParallelism(parallelism)`.
 
 The `SourceFunction` interface has two methods: `run(SourceContext)` and `cancel()`. The `run()`
 method is not expected to return until the source has either finished by itself or received
-a cancel request. The source can communicate with the outside world using the source context. For
+a stop or cancel request (both result in a call to `cancel()`). The source can communicate with the outside world using the source context. For
 example, the `emit(element)` method is used to emit one element from the source. Most sources will
 have an infinite while loop inside the `run()` method to read from the input and emit elements.
 Upon invocation of the `cancel()` method the source is required to break out of its internal

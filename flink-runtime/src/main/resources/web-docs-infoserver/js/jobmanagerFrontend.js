@@ -128,6 +128,22 @@ $(document).on("click", ".cancel", function() {
 	});
 });
 
+/**
+ * Stops a job
+ */
+$(document).on("click", ".stop", function() {
+	var id = $(this).attr("job");
+	$.ajax({ url : "jobsInfo?get=stop&job=" + id, cache: false, type : "GET",
+		success : function(json) {
+			if(json.status == "success") {
+				init();
+			} else {
+				alert(json.cause);
+			}
+		}
+	});
+});
+
 /*
  * Draw graph on left side beside table
  */
@@ -191,11 +207,13 @@ function fillTable(table, json) {
 		poll(job.jobid);
 		if(parseInt(job.time) > timestamp)
 			timestamp = parseInt(job.time);
-		$(table).append(
-						"<h2 id=\""+job.jobid+"_title\">"+ job.jobname
-								+ " ("+ formattedTimeFromTimestamp(job.time) + ")"
-								+"</h2>"
-								+"<a id=\""+job.jobid+"_cancel\" class=\"cancel btn btn-warning\" href=\"#\" job=\""+job.jobid+"\" style=\"margin-bottom: 0.5cm\">cancel</a><br />");
+		$(table).append("<h2 id=\""+job.jobid+"_title\">"+ job.jobname
+						+ " ("+ formattedTimeFromTimestamp(job.time) + ")"
+						+"</h2>");
+		if(job.jobtype == "STREAMING")
+			$(table).append("<button type=\"button\" id=\""+job.jobid+"_stop\" class=\"stop btn btn-warning\" job=\""+job.jobid+"\" style=\"margin-bottom: 0.5cm\">stop</button> ");
+		$(table).append("<a id=\""+job.jobid+"_cancel\" class=\"cancel btn btn-warning\" href=\"#\" job=\""+job.jobid+"\" style=\"margin-bottom: 0.5cm\">cancel</a><br />");
+
 		var jobtable;
 		jobtable = "<div class=\"table-responsive\">";
 		jobtable += "<table class=\"table table-bordered table-hover table-striped\" id=\""+job.jobid+"\" jobname=\""+job.jobname+"\">\
@@ -203,8 +221,10 @@ function fillTable(table, json) {
 							<th>Name</th>\
 							<th>Tasks</th>\
 							<th>Starting</th>\
-							<th>Running</th>\
-							<th>Finished</th>\
+							<th>Running</th>";
+		if(job.jobtype == "STREAMING")
+			jobtable += 	"<th>Stop</th>";
+		jobtable += "		<th>Finished</th>\
 							<th>Canceling</th>\
 							<th>Canceled</th>\
 							<th>Failed</th>\
@@ -229,6 +249,13 @@ function fillTable(table, json) {
 							<td class=\"nummembers\">"+ groupvertex.numberofgroupmembers+ "</td>";
 			jobtable += progressBar(groupvertex.numberofgroupmembers, starting, 'starting');
 			jobtable += progressBar(groupvertex.numberofgroupmembers, groupvertex.RUNNING, 'running');
+			if(job.jobtype == "STREAMING") {
+				var checked = "";
+				if(groupvertex.stopping == "true") {
+					checked = "&#x2714;"; // unicode checkmark
+				}
+				jobtable += "<td class=\"stopping\" id=\""+groupvertex.groupvertexid+"_stopping\" >"+checked+"</td>";
+			}
 			jobtable += progressBar(groupvertex.numberofgroupmembers, (groupvertex.FINISHED), 'success finished');
 			jobtable += progressBar(groupvertex.numberofgroupmembers, (groupvertex.CANCELING), 'warning canceling');
 			jobtable += progressBar(groupvertex.numberofgroupmembers, (groupvertex.CANCELED), 'warning canceled');
@@ -260,6 +287,8 @@ function fillTable(table, json) {
 						<td class=\"nummebembers\">"+ countTasks + "</td>";
 		jobtable += progressBar(countTasks, countStarting, 'starting');
 		jobtable += progressBar(countTasks, countRunning, 'running');
+		if(job.jobtype == "STREAMING")
+			jobtable += "<td></td>";
 		jobtable += progressBar(countTasks, countFinished, 'success finished');
 		jobtable += progressBar(countTasks, countCanceling, 'warning canceling');
 		jobtable += progressBar(countTasks, countCanceled, 'warning canceled');
@@ -321,6 +350,9 @@ function newWidth(maximum, val) {
 function updateTable(json) {
 	var pollfinished = false;
 	$.each(json.vertexevents , function(i, event) {
+		if(event.stopping == "true") {
+			$("#"+event.groupvertexid+"_stopping").html("&#x2714;"); // unicode checkmark
+		}
 
 		if(parseInt($("#"+event.vertexid).attr("lastupdate")) < event.timestamp)
 		{
@@ -383,7 +415,7 @@ function updateTable(json) {
 				} else if (oldcount2 > 0) {
 					$("#sum").children("."+newstate.toLowerCase()).first().children().first().children().first().css("width", newWidth(summembers, (oldcount2+1))+"%").html(oldcount2+1);
 				}
-		}
+			}
 		}
 	});
 	
@@ -399,6 +431,7 @@ function updateTable(json) {
 			var jobname = $("#"+json.jobid).attr("jobname");
 			$("#"+json.jobid).remove();
 			$("#"+json.jobid+"_title").remove();
+			$("#"+json.jobid+"_stop").remove();
 			$("#"+json.jobid+"_cancel").remove();
 
 			// remove from internal list

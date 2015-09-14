@@ -675,7 +675,7 @@ public class ExecutionGraph implements Serializable {
 	public void cancel() {
 		while (true) {
 			JobStatus current = state;
-			
+
 			if (current == JobStatus.RUNNING || current == JobStatus.CREATED) {
 				if (transitionState(current, JobStatus.CANCELLING)) {
 					for (ExecutionJobVertex ejv : verticesInCreationOrder) {
@@ -688,6 +688,18 @@ public class ExecutionGraph implements Serializable {
 				// no need to treat other states
 				return;
 			}
+		}
+	}
+
+	public void stop() {
+		if(jobType == JobType.STREAMING) {
+			for(ExecutionVertex ev : this.getAllExecutionVertices()) {
+				if(ev.getNumberOfInputs() == 0) { // send signal to sources only
+					ev.stop();
+				}
+			}
+		} else {
+			throw new RuntimeException("STOP is only supported by streaming jobs.");
 		}
 	}
 
@@ -839,7 +851,7 @@ public class ExecutionGraph implements Serializable {
 				JobStatus current;
 				while (true) {
 					current = this.state;
-					
+
 					if (current == JobStatus.RUNNING) {
 						if (transitionState(current, JobStatus.FINISHED)) {
 							postRunCleanup();

@@ -418,6 +418,28 @@ class TaskManager(
             log.debug(s"Cannot find task to fail for execution ${executionID})")
           }
 
+        // stops a task
+        case StopTask(executionID) =>
+          val task = runningTasks.get(executionID)
+          if (task != null) {
+            try {
+              task.stopExecution()
+              sender ! decorateMessage(new TaskOperationResult(executionID, true))
+            } catch {
+              case t: Throwable =>
+                        sender ! new TaskOperationResult(executionID, false,
+                            StringUtils.stringifyException(t))
+            }
+          } else {
+            log.debug(s"Cannot find task to stop for execution ${executionID})")
+            sender ! decorateMessage(
+              new TaskOperationResult(
+               executionID,
+               false,
+               "No task with that execution ID was found.")
+            )
+          }
+ 
         // cancels a task
         case CancelTask(executionID) =>
           val task = runningTasks.get(executionID)

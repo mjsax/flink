@@ -230,4 +230,10 @@ public class TwitterSource extends RichSourceFunction<String> {
 	public void cancel() {
 		isRunning = false;
 	}
+
+	@Override
+	public void stop() {
+		isRunning = false;
+	}
+
 }

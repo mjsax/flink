@@ -20,7 +20,6 @@ package org.apache.flink.streaming.api.operators.windowing;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -41,7 +40,6 @@ import org.apache.flink.streaming.api.windowing.helper.FullStream;
 import org.apache.flink.streaming.api.windowing.helper.Time;
 import org.apache.flink.streaming.api.windowing.helper.Timestamp;
 import org.apache.flink.streaming.util.StreamingMultipleProgramsTestBase;
-import org.apache.flink.streaming.util.TestStreamEnvironment;
 import org.apache.flink.util.Collector;
 import org.junit.Test;
 
@@ -167,8 +165,10 @@ public class WindowingITCase extends StreamingMultipleProgramsTestBase {
 			}
 
 			@Override
-			public void cancel() {
-			}
+			public void cancel() {}
+
+			@Override
+			public void stop() {}
 		});
 
 		DataStream<Integer> source3 = env.addSource(new RichParallelSourceFunction<Integer>() {
@@ -183,8 +183,11 @@ public class WindowingITCase extends StreamingMultipleProgramsTestBase {
 			}
 
 			@Override
-			public void cancel() {
-			}
+			public void cancel() {}
+
+
+			@Override
+			public void stop() {}
 
 			@Override
 			public void run(SourceContext<Integer> ctx) throws Exception {

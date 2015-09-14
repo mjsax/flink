@@ -41,6 +41,8 @@ import org.apache.flink.runtime.messages.ArchiveMessages;
 import org.apache.flink.runtime.messages.JobManagerMessages;
 import org.apache.flink.runtime.messages.JobManagerMessages.RunningJobs;
 import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob;
+import org.apache.flink.runtime.messages.JobManagerMessages.StopJob;
+import org.apache.flink.runtime.messages.JobManagerMessages.StoppingFailure;
 import org.apache.flink.runtime.messages.JobManagerMessages.RequestJob;
 import org.apache.flink.runtime.messages.JobManagerMessages.JobResponse;
 import org.apache.flink.runtime.messages.JobManagerMessages.JobFound;
@@ -89,7 +91,7 @@ public class JobManagerInfoServlet extends HttpServlet {
 
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException,
-			IOException {
+	IOException {
 
 		resp.setStatus(HttpServletResponse.SC_OK);
 		resp.setContentType("application/json");
@@ -220,6 +222,28 @@ public class JobManagerInfoServlet extends HttpServlet {
 
 				Await.ready(response, timeout);
 			}
+			else if ("stop".equals(req.getParameter("get"))) {
+				String jobId = req.getParameter("job");
+
+				response = jobmanager.ask(
+						new StopJob(JobID.fromHexString(jobId)),
+						timeout);
+
+				String status = "success";
+				String cause = "";
+
+				Object rc = Await.result(response, timeout);
+				if(rc instanceof StoppingFailure) {
+					status = "failure";
+					cause = ((StoppingFailure)rc).cause().getMessage();
+				}
+
+				resp.getWriter().write("{"
+					+ "\"status\": \"" + status + "\", "
+					+ "\"jobID\": \"" + jobId + "\", "
+					+ "\"cause\": \"" + cause + "\""
+					+ "}");
+			}
 			else if("updates".equals(req.getParameter("get"))) {
 				String jobId = req.getParameter("job");
 				writeJsonUpdatesForJob(resp.getWriter(), JobID.fromHexString(jobId));
@@ -289,6 +313,7 @@ public class JobManagerInfoServlet extends HttpServlet {
 		wrt.write("{");
 		wrt.write("\"jobid\": \"" + graph.getJobID() + "\",");
 		wrt.write("\"jobname\": \"" + graph.getJobName()+"\",");
+		wrt.write("\"jobtype\": \"" + graph.getJobType() + "\",");
 		wrt.write("\"status\": \""+ graph.getState() + "\",");
 		wrt.write("\"time\": " + graph.getStatusTimestamp(graph.getState())+",");
 
@@ -644,6 +669,8 @@ public class JobManagerInfoServlet extends HttpServlet {
 							wrt.write("\"vertexid\": \"" + ev.getCurrentExecutionAttempt().getAttemptId()
 									+ "\",");
 							wrt.write("\"newstate\": \"" + ev.getExecutionState() + "\",");
+							wrt.write("\"groupvertexid\": \"" + ev.getJobVertex().getJobVertexId() + "\",");
+							wrt.write("\"stopping\": \"" + ev.getJobVertex().receivedStopSignal() + "\",");
 							wrt.write("\"timestamp\": \"" + ev.getStateTimestamp(ev.getExecutionState())
 									+ "\"");
 							wrt.write("}");

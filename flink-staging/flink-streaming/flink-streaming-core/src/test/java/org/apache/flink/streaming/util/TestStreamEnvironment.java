@@ -23,7 +23,7 @@ import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.client.JobExecutionException;
-import org.apache.flink.runtime.client.SerializedJobExecutionResult;
+import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironmentFactory;
@@ -134,6 +134,35 @@ public class TestStreamEnvironment extends StreamExecutionEnvironment {
 			} else {
 				throw e;
 			}
+		}
+	}
+
+	public void stopJob(final JobID jobId) {
+		if (cluster == null) {
+			throw new IllegalStateException("The cluster is not running");
+		}
+
+		if (internalExecutor) {
+			Configuration configuration = GlobalConfiguration.getConfiguration();
+
+			configuration.setInteger(ConfigConstants.TASK_MANAGER_NUM_TASK_SLOTS, getParallelism());
+			configuration.setLong(ConfigConstants.TASK_MANAGER_MEMORY_SIZE_KEY, memorySize);
+
+			cluster = new ForkableFlinkMiniCluster(configuration);
+		} else {
+			cluster = executor;
+		}
+
+		final Configuration configuration = GlobalConfiguration.getConfiguration();
+		FiniteDuration timeout = AkkaUtils.getTimeout(configuration);
+
+		ActorGateway jobmanager = cluster.getLeaderGateway(timeout);
+		final Future<Object> response = jobmanager.ask( new StopJob(jobId), timeout);
+
+		try {
+			Await.result(response, timeout);
+		} catch (final Exception e) {
+			throw new RuntimeException("Stopping job with ID " + jobId + " failed", e);
 		}
 	}
 

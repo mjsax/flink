@@ -161,6 +161,11 @@ public class ProcessFailureStreamingRecoveryITCase extends AbstractProcessFailur
 		public void cancel() {
 			isRunning = false;
 		}
+
+		@Override
+		public void stop() {
+			isRunning = false;
+		}
 	}
 	
 	public static class Mapper extends RichMapFunction<Long, Long> {

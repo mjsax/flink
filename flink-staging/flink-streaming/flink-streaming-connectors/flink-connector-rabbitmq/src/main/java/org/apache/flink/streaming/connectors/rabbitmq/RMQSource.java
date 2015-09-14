@@ -102,4 +102,9 @@ public class RMQSource<OUT> extends ConnectorSource<OUT> {
 	public void cancel() {
 		running = false;
 	}
+
+	@Override
+	public void stop() {
+		running = false;
+	}
 }

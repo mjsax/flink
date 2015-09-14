@@ -52,6 +52,7 @@ public class JsonFactory {
 		json.append("{");
 		json.append("\"groupvertexid\": \"" + jobVertex.getJobVertexId() + "\",");
 		json.append("\"groupvertexname\": \"" + StringUtils.escapeHtml(jobVertex.getJobVertex().getName()) + "\",");
+		json.append("\"stopping\": \"" + jobVertex.receivedStopSignal() + "\",");
 		json.append("\"numberofgroupmembers\": " + jobVertex.getParallelism() + ",");
 		json.append("\"groupmembers\": [");
 		

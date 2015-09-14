@@ -41,15 +41,15 @@ import java.util.Collection;
  * @param <T> The type of elements returned by this function.
  */
 public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedAsynchronously<Integer> {
-	
+
 	private static final long serialVersionUID = 1L;
 
 	/** The (de)serializer to be used for the data elements */
 	private final TypeSerializer<T> serializer;
-	
+
 	/** The actual data elements, in serialized form */
 	private final byte[] elementsSerialized;
-	
+
 	/** The number of serialized elements */
 	private final int numElements;
 
@@ -58,15 +58,16 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 
 	/** The number of elements to skip initially */
 	private volatile int numElementsToSkip;
-	
+
 	/** Flag to make the source cancelable */
 	private volatile boolean isRunning = true;
 
-	
+
+	@SuppressWarnings("unchecked")
 	public FromElementsFunction(TypeSerializer<T> serializer, T... elements) throws IOException {
 		this(serializer, Arrays.asList(elements));
 	}
-	
+
 	public FromElementsFunction(TypeSerializer<T> serializer, Iterable<T> elements) throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		OutputViewDataOutputStreamWrapper wrapper = new OutputViewDataOutputStreamWrapper(new DataOutputStream(baos));
@@ -91,7 +92,7 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 	public void run(SourceContext<T> ctx) throws Exception {
 		ByteArrayInputStream bais = new ByteArrayInputStream(elementsSerialized);
 		final DataInputView input = new InputViewDataInputStreamWrapper(new DataInputStream(bais));
-		
+
 		// if we are restored from a checkpoint and need to skip elements, skip them now.
 		int toSkip = numElementsToSkip;
 		if (toSkip > 0) {
@@ -106,12 +107,12 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 						"If you are using user-defined serialization (Value and Writable types), check the " +
 						"serialization functions.\nSerializer is " + serializer);
 			}
-			
+
 			this.numElementsEmitted = this.numElementsToSkip;
 		}
-		
+
 		final Object lock = ctx.getCheckpointLock();
-		
+
 		while (isRunning && numElementsEmitted < numElements) {
 			T next;
 			try {
@@ -122,7 +123,7 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 						"If you are using user-defined serialization (Value and Writable types), check the " +
 						"serialization functions.\nSerializer is " + serializer);
 			}
-			
+
 			synchronized (lock) {
 				ctx.collect(next);
 				numElementsEmitted++;
@@ -135,6 +136,10 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 		isRunning = false;
 	}
 
+	@Override
+	public void stop() {
+		isRunning = false;
+	}
 
 	/**
 	 * Gets the number of elements produced in total by this function.
@@ -157,7 +162,7 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 	// ------------------------------------------------------------------------
 	//  Checkpointing
 	// ------------------------------------------------------------------------
-	
+
 	@Override
 	public Integer snapshotState(long checkpointId, long checkpointTimestamp) {
 		return this.numElementsEmitted;
@@ -167,7 +172,7 @@ public class FromElementsFunction<T> implements SourceFunction<T>, CheckpointedA
 	public void restoreState(Integer state) {
 		this.numElementsToSkip = state;
 	}
-	
+
 	// ------------------------------------------------------------------------
 	//  Utilities
 	// ------------------------------------------------------------------------

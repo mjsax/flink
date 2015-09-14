@@ -99,6 +99,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 				});
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public void postSubmit() {
 		List[][] checkList = new List[][]{	GeneratingSourceFunction.completedCheckpoints,
@@ -148,12 +149,14 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 
 		// test behaviour
 		private int subtaskId;
+		@SuppressWarnings("rawtypes")
 		public static List[] completedCheckpoints = new List[PARALLELISM];
 
 		GeneratingSourceFunction(long numElements) {
 			this.numElements = numElements;
 		}
 
+		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration parameters) throws IOException {
 			step = getRuntimeContext().getNumberOfParallelSubtasks();
@@ -189,6 +192,12 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 		}
 
 		@Override
+		public void stop() {
+			isRunning = false;
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
 		public void notifyCheckpointComplete(long checkpointId) throws Exception {
 			completedCheckpoints[subtaskId].add(checkpointId);
 		}
@@ -201,6 +210,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 	private static class IdentityMapFunction extends RichMapFunction<Long, Tuple1<Long>>
 			implements CheckpointNotifier {
 
+		@SuppressWarnings("rawtypes")
 		public static List[] completedCheckpoints = new List[PARALLELISM];
 		private int subtaskId;
 
@@ -209,6 +219,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 			return Tuple1.of(value);
 		}
 
+		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration conf) throws IOException {
 			subtaskId = getRuntimeContext().getIndexOfThisSubtask();
@@ -219,6 +230,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 			}
 		}
 
+		@SuppressWarnings("unchecked")
 		@Override
 		public void notifyCheckpointComplete(long checkpointId) throws Exception {
 			completedCheckpoints[subtaskId].add(checkpointId);
@@ -283,6 +295,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 	private static class LongRichFilterFunction extends RichFilterFunction<Long>
 			implements CheckpointNotifier {
 
+		@SuppressWarnings("rawtypes")
 		public static List[] completedCheckpoints = new List[PARALLELISM];
 		private int subtaskId;
 
@@ -291,6 +304,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 			return value < 100;
 		}
 
+		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration conf) throws IOException {
 			subtaskId = getRuntimeContext().getIndexOfThisSubtask();
@@ -301,6 +315,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 			}
 		}
 
+		@SuppressWarnings("unchecked")
 		@Override
 		public void notifyCheckpointComplete(long checkpointId) throws Exception {
 			completedCheckpoints[subtaskId].add(checkpointId);
@@ -315,9 +330,11 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 	private static class LeftIdentityCoRichFlatMapFunction extends RichCoFlatMapFunction<Long, Long, Long>
 			implements CheckpointNotifier {
 
+		@SuppressWarnings("rawtypes")
 		public static List[] completedCheckpoints = new List[PARALLELISM];
 		private int subtaskId;
 
+		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration conf) throws IOException {
 			subtaskId = getRuntimeContext().getIndexOfThisSubtask();
@@ -338,6 +355,7 @@ public class StreamCheckpointNotifierITCase extends StreamFaultToleranceTestBase
 			// we ignore the values from the second input
 		}
 
+		@SuppressWarnings("unchecked")
 		@Override
 		public void notifyCheckpointComplete(long checkpointId) throws Exception {
 			completedCheckpoints[subtaskId].add(checkpointId);

@@ -83,6 +83,11 @@ public class CheckpointedStreamingProgram {
 		}
 
 		@Override
+		public void stop() {
+			running = false;
+		}
+
+		@Override
 		public Integer snapshotState(long checkpointId, long checkpointTimestamp) throws Exception {
 			return null;
 		}

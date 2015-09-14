@@ -179,9 +179,14 @@ public class StateCheckpoinedITCase extends StreamFaultToleranceTestBase {
 				}
 			}
 		}
-		
+
 		@Override
 		public void cancel() {
+			isRunning = false;
+		}
+
+		@Override
+		public void stop() {
 			isRunning = false;
 		}
 

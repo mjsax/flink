@@ -51,6 +51,7 @@ import org.apache.flink.client.cli.InfoOptions;
 import org.apache.flink.client.cli.ListOptions;
 import org.apache.flink.client.cli.ProgramOptions;
 import org.apache.flink.client.cli.RunOptions;
+import org.apache.flink.client.cli.StopOptions;
 import org.apache.flink.client.program.Client;
 import org.apache.flink.client.program.PackagedProgram;
 import org.apache.flink.client.program.ProgramInvocationException;
@@ -75,7 +76,10 @@ import org.apache.flink.runtime.yarn.AbstractFlinkYarnClient;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob;
+import org.apache.flink.runtime.messages.JobManagerMessages.CancellationFailure;
 import org.apache.flink.runtime.messages.JobManagerMessages.RunningJobsStatus;
+import org.apache.flink.runtime.messages.JobManagerMessages.StopJob;
+import org.apache.flink.runtime.messages.JobManagerMessages.StoppingFailure;
 import org.apache.flink.runtime.yarn.AbstractFlinkYarnCluster;
 import org.apache.flink.runtime.yarn.FlinkYarnClusterStatus;
 import org.apache.flink.util.StringUtils;
@@ -98,6 +102,7 @@ public class CliFrontend {
 	public static final String ACTION_INFO = "info";
 	private static final String ACTION_LIST = "list";
 	private static final String ACTION_CANCEL = "cancel";
+	private static final String ACTION_STOP = "stop";
 
 	// config dir parameters
 	private static final String ENV_CONFIG_DIRECTORY = "FLINK_CONF_DIR";
@@ -266,7 +271,7 @@ public class CliFrontend {
 		catch (CliArgsException e) {
 			return handleArgException(e);
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 
@@ -288,10 +293,7 @@ public class CliFrontend {
 		catch (FileNotFoundException e) {
 			return handleArgException(e);
 		}
-		catch (ProgramInvocationException e) {
-			return handleError(e);
-		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 
@@ -346,7 +348,7 @@ public class CliFrontend {
 				client.shutdown();
 			}
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 		finally {
@@ -363,7 +365,7 @@ public class CliFrontend {
 	/**
 	 * Executes the info action.
 	 * 
-	 * @param args Command line arguments for the info action. 
+	 * @param args Command line arguments for the info action.
 	 */
 	protected int info(String[] args) {
 		LOG.info("Running 'info' command.");
@@ -376,7 +378,7 @@ public class CliFrontend {
 		catch (CliArgsException e) {
 			return handleArgException(e);
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 
@@ -397,7 +399,7 @@ public class CliFrontend {
 			LOG.info("Building program from JAR file");
 			program = buildProgram(options);
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 
@@ -440,7 +442,7 @@ public class CliFrontend {
 
 
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 		finally {
@@ -463,7 +465,7 @@ public class CliFrontend {
 		catch (CliArgsException e) {
 			return handleArgException(e);
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 
@@ -566,7 +568,70 @@ public class CliFrontend {
 						"RunningJobs. Instead the response is of type " + result.getClass() + ".");
 			}
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
+			return handleError(t);
+		}
+	}
+
+	/**
+	 * Executes the STOP action.
+	 * 
+	 * @param args Command line arguments for the stop action.
+	 */
+	protected int stop(String[] args) {
+		LOG.info("Running 'stop' command.");
+
+		StopOptions options;
+		try {
+			options = CliFrontendParser.parseStopCommand(args);
+		}
+		catch (CliArgsException e) {
+			return handleArgException(e);
+		}
+		catch (Exception t) {
+			return handleError(t);
+		}
+
+		// evaluate help flag
+		if (options.isPrintHelp()) {
+			CliFrontendParser.printHelpForStop();
+			return 0;
+		}
+
+		String[] stopArgs = options.getArgs();
+		JobID jobId;
+
+		if (stopArgs.length > 0) {
+			String jobIdString = stopArgs[0];
+			try {
+				jobId = new JobID(StringUtils.hexStringToByte(jobIdString));
+			}
+			catch (Exception e) {
+				LOG.error("Error: The value for the Job ID is not a valid ID.");
+				System.out.println("Error: The value for the Job ID is not a valid ID.");
+				return 1;
+			}
+		}
+		else {
+			LOG.error("Missing JobID in the command line arguments.");
+			System.out.println("Error: Specify a Job ID to stop a job.");
+			return 1;
+		}
+
+		try {
+			ActorGateway jobManager = getJobManagerGateway(options);
+			Future<Object> response = jobManager.ask(new StopJob(jobId), askTimeout);
+
+			Object rc = Await.result(response, askTimeout);
+
+			if (rc instanceof StoppingFailure) {
+				throw new Exception("Stopping the job with ID " + jobId + " failed.",
+						((StoppingFailure) rc).cause());
+			}
+
+			return 0;
+		}
+		catch (Exception t) {
 			return handleError(t);
 		}
 	}
@@ -586,7 +651,7 @@ public class CliFrontend {
 		catch (CliArgsException e) {
 			return handleArgException(e);
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 
@@ -620,15 +685,16 @@ public class CliFrontend {
 			ActorGateway jobManager = getJobManagerGateway(options);
 			Future<Object> response = jobManager.ask(new CancelJob(jobId), askTimeout);
 
-			try {
-				Await.result(response, askTimeout);
-				return 0;
+			Object rc = Await.result(response, askTimeout);
+
+			if (rc instanceof CancellationFailure) {
+				throw new Exception("Canceling the job with ID " + jobId + " failed.",
+						((CancellationFailure) rc).cause());
 			}
-			catch (Exception e) {
-				throw new Exception("Canceling the job with ID " + jobId + " failed.", e);
-			}
+
+			return 0;
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			return handleError(t);
 		}
 	}
@@ -909,15 +975,20 @@ public class CliFrontend {
 	 * @param t The exception to display.
 	 * @return The return code for the process.
 	 */
-	private int handleError(Throwable t) {
+	private int handleError(Exception t) {
 		if (webFrontend) {
 			throw new RuntimeException(t);
 		}
 		LOG.error("Error while running the command.", t);
 
-		t.printStackTrace();
+		System.err.println(t.getMessage());
+		Throwable cause = t.getCause();
+		if(cause != null) {
+			System.err.println(cause.getMessage());
+		}
+
 		System.err.println();
-		System.err.println("The exception above occurred while trying to run your command.");
+		System.err.println("The exception above occurred while trying to run your command (see log for details).");
 		return 1;
 	}
 
@@ -982,6 +1053,9 @@ public class CliFrontend {
 		else if (action.equals(ACTION_INFO)) {
 			return info(params);
 		}
+		else if (action.equals(ACTION_STOP)) {
+			return stop(params);
+		}
 		else if (action.equals(ACTION_CANCEL)) {
 			return cancel(params);
 		}
@@ -992,7 +1066,7 @@ public class CliFrontend {
 		else {
 			System.out.printf("\"%s\" is not a valid action.\n", action);
 			System.out.println();
-			System.out.println("Valid actions are \"run\", \"list\", \"info\", or \"cancel\".");
+			System.out.println("Valid actions are \"run\", \"list\", \"info\", \"stop\", or \"cancel\".");
 			System.out.println();
 			System.out.println("Specify the help option (-h or --help) to get help on the command.");
 			return 1;
@@ -1027,7 +1101,7 @@ public class CliFrontend {
 			int retCode = cli.parseParameters(args);
 			System.exit(retCode);
 		}
-		catch (Throwable t) {
+		catch (Exception t) {
 			LOG.error("Fatal error while running command line interface.", t);
 			t.printStackTrace();
 			System.exit(31);

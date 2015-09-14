@@ -25,9 +25,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.util.NoOpSink;
-import org.apache.flink.streaming.util.ReceiveCheckNoOpSink;
 import org.apache.flink.streaming.util.StreamingMultipleProgramsTestBase;
-import org.apache.flink.streaming.util.TestStreamEnvironment;
 import org.junit.Test;
 
 @SuppressWarnings("serial")
@@ -54,8 +52,10 @@ public class ChainedRuntimeContextTest extends StreamingMultipleProgramsTestBase
 		}
 
 		@Override
-		public void cancel() {
-		}
+		public void cancel() {}
+
+		@Override
+		public void stop() {}
 
 		@Override
 		public void open(Configuration c) {

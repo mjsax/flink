@@ -53,7 +53,6 @@ public class TopSpeedWindowing {
 
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-		@SuppressWarnings({"rawtypes", "serial"})
 		DataStream<Tuple4<Integer, Integer, Double, Long>> carData;
 		if (fileInput) {
 			carData = env.readTextFile(inputPath).map(new ParseCarData());
@@ -131,6 +130,11 @@ public class TopSpeedWindowing {
 
 		@Override
 		public void cancel() {
+			isRunning = false;
+		}
+
+		@Override
+		public void stop() {
 			isRunning = false;
 		}
 	}

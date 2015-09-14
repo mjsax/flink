@@ -308,5 +308,10 @@ public class StreamTaskTimerITCase extends StreamingMultipleProgramsTestBase {
 		public void cancel() {
 			running = false;
 		}
+
+		@Override
+		public void stop() {
+			running = false;
+		}
 	}
 }

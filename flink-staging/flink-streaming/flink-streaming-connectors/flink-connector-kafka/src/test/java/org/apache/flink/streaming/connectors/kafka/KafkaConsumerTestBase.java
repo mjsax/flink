@@ -288,7 +288,6 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBase {
 				int cnt = getRuntimeContext().getIndexOfThisSubtask() * elementsPerPartition;
 				int limit = cnt + elementsPerPartition;
 
-
 				while (running && cnt < limit) {
 					ctx.collect(new Tuple2<Long, String>(1000L + cnt, "kafka-" + cnt));
 					cnt++;
@@ -297,6 +296,11 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBase {
 
 			@Override
 			public void cancel() {
+				running = false;
+			}
+
+			@Override
+			public void stop() {
 				running = false;
 			}
 		});
@@ -795,6 +799,11 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBase {
 			public void cancel() {
 				running = false;
 			}
+
+			@Override
+			public void stop() {
+				running = false;
+			}
 		});
 
 		stream.addSink(new FlinkKafkaProducer<>(topic, deserSchema, producerProps));
@@ -953,6 +962,12 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBase {
 			public void cancel() {
 				running = false;
 			}
+
+			@Override
+			public void stop() {
+				running = false;
+			}
+
 		}).setParallelism(parallelism);
 		
 		stream.addSink(new FlinkKafkaProducer<>(topicName,
