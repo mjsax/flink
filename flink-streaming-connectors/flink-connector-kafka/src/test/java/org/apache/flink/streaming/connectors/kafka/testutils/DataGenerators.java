@@ -67,6 +67,11 @@ public class DataGenerators {
 					public void cancel() {
 						running = false;
 					}
+
+					@Override
+					public void stop() {
+						running = false;
+					}
 				});
 
 		stream.addSink(new FlinkKafkaProducer<>(topic,
@@ -126,6 +131,11 @@ public class DataGenerators {
 
 					@Override
 					public void cancel() {
+						running = false;
+					}
+
+					@Override
+					public void stop() {
 						running = false;
 					}
 				});

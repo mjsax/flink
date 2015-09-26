@@ -489,6 +489,11 @@ public class FlinkKafkaConsumer<T> extends RichParallelSourceFunction<T>
 	}
 
 	@Override
+	public void stop() {
+		this.cancel();
+	}
+
+	@Override
 	public void close() throws Exception {
 		cancel();
 		super.close();

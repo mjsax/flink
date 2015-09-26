@@ -105,6 +105,10 @@ The command line can be used to
 
         ./bin/flink cancel <jobID>
 
+-   Stop a job (streaming jobs only):
+
+        ./bin/flink stop <jobID>
+
 ## Usage
 
 The command line syntax is as follows:
@@ -189,6 +193,16 @@ Action "list" lists running and scheduled programs.
                                    configuration.
      -r,--running                  Show only running programs and their JobIDs
      -s,--scheduled                Show only scheduled programs and their JobIDs
+
+
+Action "stop" stops a running program (streaming jobs only).
+
+  Syntax: stop [OPTIONS] <Job ID>
+  "stop" action options:
+     -m,--jobmanager <host:port>   Address of the JobManager (master) to which
+                                   to connect. Use this flag to connect to a
+                                   different JobManager than the one specified
+                                   in the configuration.
 
 
 Action "cancel" cancels a running program.

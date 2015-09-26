@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.JobType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.execution.ExecutionState;
@@ -59,12 +60,13 @@ public class ExecutionGraphRestartTest {
 		sender.setInvokableClass(Tasks.NoOpInvokable.class);
 		sender.setParallelism(NUM_TASKS);
 
-		JobGraph jobGraph = new JobGraph("Pointwise job", sender);
+		JobGraph jobGraph = new JobGraph("Pointwise job", JobType.BATCHING, sender);
 
 		ExecutionGraph eg = new ExecutionGraph(
 				TestingUtils.defaultExecutionContext(),
 				new JobID(),
 				"test job",
+				JobType.BATCHING,
 				new Configuration(),
 				AkkaUtils.getDefaultTimeout());
 		eg.setNumberOfRetriesLeft(0);
@@ -101,12 +103,13 @@ public class ExecutionGraphRestartTest {
 		sender.setInvokableClass(Tasks.NoOpInvokable.class);
 		sender.setParallelism(NUM_TASKS);
 
-		JobGraph jobGraph = new JobGraph("Pointwise job", sender);
+		JobGraph jobGraph = new JobGraph("Pointwise job", JobType.BATCHING, sender);
 
 		ExecutionGraph eg = new ExecutionGraph(
 				TestingUtils.defaultExecutionContext(),
 				new JobID(),
 				"Test job",
+				JobType.BATCHING,
 				new Configuration(),
 				AkkaUtils.getDefaultTimeout());
 		eg.setNumberOfRetriesLeft(1);
@@ -178,6 +181,7 @@ public class ExecutionGraphRestartTest {
 				TestingUtils.defaultExecutionContext(),
 				new JobID(),
 				"TestJob",
+				JobType.BATCHING,
 				new Configuration(),
 				AkkaUtils.getDefaultTimeout());
 
@@ -185,7 +189,7 @@ public class ExecutionGraphRestartTest {
 		jobVertex.setInvokableClass(Tasks.NoOpInvokable.class);
 		jobVertex.setParallelism(NUM_TASKS);
 
-		JobGraph jobGraph = new JobGraph("TestJob", jobVertex);
+		JobGraph jobGraph = new JobGraph("TestJob", JobType.BATCHING, jobVertex);
 
 		// We want to manually control the restart and delay
 		executionGraph.setNumberOfRetriesLeft(Integer.MAX_VALUE);
@@ -237,6 +241,7 @@ public class ExecutionGraphRestartTest {
 				TestingUtils.defaultExecutionContext(),
 				new JobID(),
 				"TestJob",
+				JobType.BATCHING,
 				new Configuration(),
 				AkkaUtils.getDefaultTimeout());
 
@@ -251,7 +256,7 @@ public class ExecutionGraphRestartTest {
 		jobVertex.setInvokableClass(Tasks.NoOpInvokable.class);
 		jobVertex.setParallelism(NUM_TASKS);
 
-		JobGraph jobGraph = new JobGraph("TestJob", jobVertex);
+		JobGraph jobGraph = new JobGraph("TestJob", JobType.BATCHING, jobVertex);
 
 		// We want to manually control the restart and delay
 		executionGraph.setNumberOfRetriesLeft(Integer.MAX_VALUE);

@@ -72,7 +72,6 @@ public class ExecutionVertex implements Serializable {
 
 	private static final long serialVersionUID = 42L;
 
-	@SuppressWarnings("unused")
 	private static final Logger LOG = ExecutionGraph.LOG;
 
 	private static final int MAX_DISTINCT_LOCATIONS_TO_CONSIDER = 8;
@@ -464,6 +463,10 @@ public class ExecutionVertex implements Serializable {
 
 	public void cancel() {
 		this.currentExecution.cancel();
+	}
+
+	public void stop() {
+		this.currentExecution.stop();
 	}
 
 	public void fail(Throwable t) {

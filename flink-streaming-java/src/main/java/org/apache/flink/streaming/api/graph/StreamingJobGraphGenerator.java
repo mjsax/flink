@@ -29,6 +29,7 @@ import java.util.Map.Entry;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.JobType;
 import org.apache.flink.api.common.operators.util.UserCodeObjectWrapper;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
@@ -87,7 +88,7 @@ public class StreamingJobGraphGenerator {
 	}
 
 	public JobGraph createJobGraph(String jobName) {
-		jobGraph = new JobGraph(streamGraph.getJobName());
+		jobGraph = new JobGraph(streamGraph.getJobName(), JobType.STREAMING);
 
 		// make sure that all vertices start immediately
 		jobGraph.setScheduleMode(ScheduleMode.ALL);
@@ -99,7 +100,7 @@ public class StreamingJobGraphGenerator {
 		setPhysicalEdges();
 
 		setSlotSharing();
-		
+
 		configureCheckpointing();
 
 		configureExecutionRetries();
@@ -111,7 +112,7 @@ public class StreamingJobGraphGenerator {
 		} catch (IOException e) {
 			throw new RuntimeException("Config object could not be written to Job Configuration: ", e);
 		}
-		
+
 		return jobGraph;
 	}
 
@@ -386,7 +387,7 @@ public class StreamingJobGraphGenerator {
 		}
 
 	}
-	
+
 	private void configureCheckpointing() {
 		CheckpointConfig cfg = streamGraph.getCheckpointConfig();
 		
@@ -407,7 +408,7 @@ public class StreamingJobGraphGenerator {
 			// collect the vertices that receive "commit checkpoint" messages
 			// currently, these are all vertices
 			List<JobVertexID> commitVertices = new ArrayList<JobVertexID>();
-			
+
 			for (JobVertex vertex : jobVertices.values()) {
 				if (vertex.isInputVertex()) {
 					triggerVertices.add(vertex.getID());
