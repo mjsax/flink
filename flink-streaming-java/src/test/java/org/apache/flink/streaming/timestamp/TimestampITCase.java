@@ -115,6 +115,7 @@ public class TimestampITCase {
 	 * tasks and stream operators have dedicated tests that test the watermark propagation
 	 * behaviour.
 	 */
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testWatermarkPropagation() throws Exception {
 		final int NUM_WATERMARKS = 10;
@@ -280,9 +281,10 @@ public class TimestampITCase {
 			}
 
 			@Override
-			public void cancel() {
+			public void cancel() {}
 
-			}
+			@Override
+			public void stop() {}
 		});
 
 		DataStream<Integer> extractOp = source1.assignTimestamps(
@@ -342,9 +344,10 @@ public class TimestampITCase {
 			}
 
 			@Override
-			public void cancel() {
+			public void cancel() {}
 
-			}
+			@Override
+			public void stop() {}
 		});
 
 		source1.assignTimestamps(new TimestampExtractor<Integer>() {
@@ -409,9 +412,10 @@ public class TimestampITCase {
 			}
 
 			@Override
-			public void cancel() {
+			public void cancel() {}
 
-			}
+			@Override
+			public void stop() {}
 		});
 
 		source1.assignTimestamps(new TimestampExtractor<Integer>() {
@@ -705,9 +709,10 @@ public class TimestampITCase {
 		}
 
 		@Override
-		public void cancel() {
+		public void cancel() {}
 
-		}
+		@Override
+		public void stop() {}
 	}
 
 	public static class MyNonWatermarkingSource implements SourceFunction<Integer> {
@@ -726,9 +731,10 @@ public class TimestampITCase {
 		}
 
 		@Override
-		public void cancel() {
+		public void cancel() {}
 
-		}
+		@Override
+		public void stop() {}
 	}
 
 	// This is a event-time source. This should only emit elements with timestamps. The test should
@@ -743,9 +749,10 @@ public class TimestampITCase {
 		}
 
 		@Override
-		public void cancel() {
+		public void cancel() {}
 
-		}
+		@Override
+		public void stop() {}
 	}
 
 	// This is a normal source. This should only emit elements without timestamps. The test should
@@ -760,9 +767,10 @@ public class TimestampITCase {
 		}
 
 		@Override
-		public void cancel() {
+		public void cancel() {}
 
-		}
+		@Override
+		public void stop() {}
 	}
 
 	// This is a normal source. This should only emit elements without timestamps. This also
@@ -778,8 +786,9 @@ public class TimestampITCase {
 		}
 
 		@Override
-		public void cancel() {
+		public void cancel() {}
 
-		}
+		@Override
+		public void stop() {}
 	}
 }

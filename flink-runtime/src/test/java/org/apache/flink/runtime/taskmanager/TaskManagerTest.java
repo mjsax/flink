@@ -49,23 +49,25 @@ import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
+import org.apache.flink.runtime.jobgraph.tasks.Stoppable;
 import org.apache.flink.runtime.jobmanager.Tasks;
 import org.apache.flink.runtime.messages.Messages;
 import org.apache.flink.runtime.messages.RegistrationMessages;
 import org.apache.flink.runtime.messages.TaskManagerMessages;
 import org.apache.flink.runtime.messages.TaskMessages;
 import org.apache.flink.runtime.messages.TaskMessages.CancelTask;
+import org.apache.flink.runtime.messages.TaskMessages.StopTask;
 import org.apache.flink.runtime.messages.TaskMessages.PartitionState;
 import org.apache.flink.runtime.messages.TaskMessages.SubmitTask;
 import org.apache.flink.runtime.messages.TaskMessages.TaskOperationResult;
 import org.apache.flink.runtime.testingUtils.TestingTaskManagerMessages;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.util.NetUtils;
+import org.apache.flink.util.TestLogger;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,10 +94,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 @SuppressWarnings("serial")
-public class TaskManagerTest {
+public class TaskManagerTest extends TestLogger {
 
-	private static final Logger LOG = LoggerFactory.getLogger(TaskManagerTest.class);
-	
 	private static final FiniteDuration timeout = new FiniteDuration(1, TimeUnit.MINUTES);
 
 	private static final FiniteDuration d = new FiniteDuration(20, TimeUnit.SECONDS);
@@ -118,12 +118,6 @@ public class TaskManagerTest {
 	
 	@Test
 	public void testSubmitAndExecuteTask() {
-		
-		LOG.info(	"--------------------------------------------------------------------\n" + 
-					"     Starting testSubmitAndExecuteTask() \n" + 
-					"--------------------------------------------------------------------");
-		
-		
 		new JavaTestKit(system){{
 
 			ActorGateway taskManager = null;
@@ -233,11 +227,6 @@ public class TaskManagerTest {
 	
 	@Test
 	public void testJobSubmissionAndCanceling() {
-
-		LOG.info(	"--------------------------------------------------------------------\n" +
-					"     Starting testJobSubmissionAndCanceling() \n" +
-					"--------------------------------------------------------------------");
-		
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -367,14 +356,134 @@ public class TaskManagerTest {
 			}
 		}};
 	}
-	
+
+	@Test
+	public void testJobSubmissionAndStop() {
+		new JavaTestKit(system){{
+
+			ActorGateway jobManager = null;
+			ActorGateway taskManager = null;
+
+			final ActorGateway testActorGateway = new AkkaActorGateway(
+					getTestActor(),
+					leaderSessionID);
+
+			try {
+				ActorRef jm = system.actorOf(Props.create(SimpleJobManager.class, leaderSessionID));
+				jobManager = new AkkaActorGateway(jm, leaderSessionID);
+
+				taskManager = TestingUtils.createTaskManager(
+						system,
+						jobManager,
+						new Configuration(),
+						true,
+						true);
+
+				final JobID jid1 = new JobID();
+				final JobID jid2 = new JobID();
+
+				JobVertexID vid1 = new JobVertexID();
+				JobVertexID vid2 = new JobVertexID();
+
+				final ExecutionAttemptID eid1 = new ExecutionAttemptID();
+				final ExecutionAttemptID eid2 = new ExecutionAttemptID();
+
+				final TaskDeploymentDescriptor tdd1 = new TaskDeploymentDescriptor(jid1, vid1, eid1, "TestTask1", 1, 5,
+						new Configuration(), new Configuration(), StoppableInvokable.class.getName(),
+						Collections.<ResultPartitionDeploymentDescriptor>emptyList(),
+						Collections.<InputGateDeploymentDescriptor>emptyList(),
+					new ArrayList<BlobKey>(), Collections.<URL>emptyList(), 0);
+
+				final TaskDeploymentDescriptor tdd2 = new TaskDeploymentDescriptor(jid2, vid2, eid2, "TestTask2", 2, 7,
+						new Configuration(), new Configuration(), TestInvokableBlockingCancelable.class.getName(),
+						Collections.<ResultPartitionDeploymentDescriptor>emptyList(),
+						Collections.<InputGateDeploymentDescriptor>emptyList(),
+					new ArrayList<BlobKey>(), Collections.<URL>emptyList(), 0);
+
+				final ActorGateway tm = taskManager;
+
+				new Within(d) {
+
+					@Override
+					protected void run() {
+						try {
+							Future<Object> t1Running = tm.ask(
+									new TestingTaskManagerMessages.NotifyWhenTaskIsRunning(eid1),
+									timeout);
+							Future<Object> t2Running = tm.ask(
+									new TestingTaskManagerMessages.NotifyWhenTaskIsRunning(eid2),
+									timeout);
+
+							tm.tell(new SubmitTask(tdd1), testActorGateway);
+							tm.tell(new SubmitTask(tdd2), testActorGateway);
+
+							expectMsgEquals(Messages.getAcknowledge());
+							expectMsgEquals(Messages.getAcknowledge());
+
+							Await.ready(t1Running, d);
+							Await.ready(t2Running, d);
+
+							tm.tell(TestingTaskManagerMessages.getRequestRunningTasksMessage(), testActorGateway);
+
+							Map<ExecutionAttemptID, Task> runningTasks = expectMsgClass(TestingTaskManagerMessages
+									.ResponseRunningTasks.class).asJava();
+
+							assertEquals(2, runningTasks.size());
+							Task t1 = runningTasks.get(eid1);
+							Task t2 = runningTasks.get(eid2);
+							assertNotNull(t1);
+							assertNotNull(t2);
+
+							assertEquals(ExecutionState.RUNNING, t1.getExecutionState());
+							assertEquals(ExecutionState.RUNNING, t2.getExecutionState());
+
+							tm.tell(new StopTask(eid1), testActorGateway);
+
+							expectMsgEquals(new TaskOperationResult(eid1, true));
+
+							Future<Object> response = tm.ask(
+									new TestingTaskManagerMessages.NotifyWhenTaskRemoved(eid1),
+									timeout);
+							Await.ready(response, d);
+
+							assertEquals(ExecutionState.FINISHED, t1.getExecutionState());
+
+							tm.tell(TestingTaskManagerMessages.getRequestRunningTasksMessage(), testActorGateway);
+							runningTasks = expectMsgClass(TestingTaskManagerMessages
+									.ResponseRunningTasks.class).asJava();
+
+							assertEquals(1, runningTasks.size());
+
+							tm.tell(new StopTask(eid1), testActorGateway);
+							expectMsgEquals(new TaskOperationResult(eid1, false, "No task with that execution ID was " +
+									"found."));
+
+							tm.tell(new StopTask(eid2), testActorGateway);
+							expectMsgEquals(new TaskOperationResult(eid2, false, "UnsupportedOperationException: Stopping not supported by this task."));
+
+							assertEquals(ExecutionState.RUNNING, t2.getExecutionState());
+
+							tm.tell(TestingTaskManagerMessages.getRequestRunningTasksMessage(), testActorGateway);
+							runningTasks = expectMsgClass(TestingTaskManagerMessages
+									.ResponseRunningTasks.class).asJava();
+
+							assertEquals(1, runningTasks.size());
+						} catch (Exception e) {
+							e.printStackTrace();
+							fail(e.getMessage());
+						}
+					}
+				};
+			}
+			finally {
+				TestingUtils.stopActor(taskManager);
+				TestingUtils.stopActor(jobManager);
+			}
+		}};
+	}
+
 	@Test
 	public void testGateChannelEdgeMismatch() {
-
-		LOG.info(	"--------------------------------------------------------------------\n" +
-					"     Starting testGateChannelEdgeMismatch() \n" +
-					"--------------------------------------------------------------------");
-		
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -462,11 +571,6 @@ public class TaskManagerTest {
 	
 	@Test
 	public void testRunJobWithForwardChannel() {
-
-		LOG.info(	"--------------------------------------------------------------------\n" +
-					"     Starting testRunJobWithForwardChannel() \n" +
-					"--------------------------------------------------------------------");
-		
 		new JavaTestKit(system){{
 
 			ActorGateway jobManager = null;
@@ -596,11 +700,6 @@ public class TaskManagerTest {
 	
 	@Test
 	public void testCancellingDependentAndStateUpdateFails() {
-
-		LOG.info(	"--------------------------------------------------------------------\n" +
-					"     Starting testCancellingDependentAndStateUpdateFails() \n" +
-					"--------------------------------------------------------------------");
-
 		// this tests creates two tasks. the sender sends data, and fails to send the
 		// state update back to the job manager
 		// the second one blocks to be canceled
@@ -939,6 +1038,7 @@ public class TaskManagerTest {
 			this.leaderSessionID = leaderSessionID;
 		}
 
+		@Override
 		public void handleMessage(Object message) throws Exception {
 			if (message instanceof RegistrationMessages.RegisterTaskManager) {
 				final InstanceID iid = new InstanceID();
@@ -1114,4 +1214,24 @@ public class TaskManagerTest {
 			}
 		}
 	}
+
+	public static final class StoppableInvokable extends AbstractInvokable implements Stoppable {
+		private boolean isRunning = true;
+
+		@Override
+		public void registerInputOutput() {}
+
+		@Override
+		public void invoke() throws Exception {
+			while(isRunning) {
+				Thread.sleep(100);
+			}
+		}
+
+		@Override
+		public void stop() {
+			this.isRunning = false;
+		}
+	}
+
 }
