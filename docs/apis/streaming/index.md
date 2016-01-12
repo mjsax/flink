@@ -3148,6 +3148,11 @@ public static class CounterSource extends RichParallelSourceFunction<Long>, Chec
     }
 
     @Override
+    public void stop() {
+        isRunning = false;
+    }
+
+    @Override
     public Long snapshotState(long checkpointId, long checkpointTimestamp) {
         return offset;
 

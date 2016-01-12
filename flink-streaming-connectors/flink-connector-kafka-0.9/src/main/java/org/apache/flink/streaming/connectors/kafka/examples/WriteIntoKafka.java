@@ -60,6 +60,11 @@ public class WriteIntoKafka {
 			public void cancel() {
 				running = false;
 			}
+
+			@Override
+			public void stop() {
+				running = false;
+			}
 		});
 
 		// write data into Kafka
