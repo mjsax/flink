@@ -503,7 +503,6 @@ class StreamExecutionEnvironment(javaEnv: JavaEnv) {
         cleanFun(ctx)
       }
       override def cancel() = {}
-      override def stop() = {}
     }
     addSource(sourceFunction)
   }

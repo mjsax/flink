@@ -33,6 +33,7 @@ import java.util.List;
 
 public class SessionWindowing {
 
+	@SuppressWarnings("serial")
 	public static void main(String[] args) throws Exception {
 
 		if (!parseParameters(args)) {
@@ -73,10 +74,8 @@ public class SessionWindowing {
 					}
 
 					@Override
-					public void cancel() {}
-
-					@Override
-					public void stop() {}
+					public void cancel() {
+					}
 				});
 
 		// We create sessions for each id with max timeout of 3 time units
